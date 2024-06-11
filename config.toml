@@ -33,6 +33,6 @@ paginate = 10
     weight = 4
   [[menu.main]]
     name = ''
-    url = 'linkedin.com'
+    url = 'https://www.linkedin.com/in/linwang4ds/'
     weight = 5
     post = '<i class="fab fa-linkedin"></i>'  
