@@ -11,15 +11,8 @@ paginate = 10
   ShowPostNavLinks = true
   ShowBreadCrumbs = true
   ShowToc = true
-  socialIcons = true
   disableHLJS = true
   comments = false
-
-[[params.social]]
-  name = "LinkedIn"
-  url = "https://www.linkedin.com/in/linwang4ds/"
-  weight = 1
-  icon = "linkedin"
 
 [menu]
   [[menu.main]]
@@ -39,6 +32,7 @@ paginate = 10
     url = "/About/"
     weight = 4
   [[menu.main]]
-    name = ""
-    url = "https://www.linkedin.com/in/linwang4ds/"
-    post = '<i class="fab fa-linkedin"></i>'
+    name = ''
+    url = 'linkedin.com'
+    weight = 5
+    post = '<i class="fab fa-linkedin"></i>'  
