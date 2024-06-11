@@ -1,1 +1,33 @@
-theme = 'PaperMod'
+baseURL = "https://entropy-warrior.github.io/"
+languageCode = "en-us"
+title = "Perspective Tensor"
+theme = "PaperMod"
+paginate = 10
+
+[params]
+  author = "Lin Wang"
+  description = "Documenting my evolving perspectives on a lifelong journey of learning."
+  ShowReadingTime = true
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowToc = true
+  disableHLJS = true
+  comments = false
+
+[menu]
+  [[menu.main]]
+    name = "Posts"
+    url = "/posts/"
+    weight = 1
+  [[menu.main]]
+    name = "Archive"
+    url = "/archives/"
+    weight = 2
+  [[menu.main]]
+    name = "Search"
+    url = "/search/"
+    weight = 3
+  [[menu.main]]
+    name = "Tags"
+    url = "/tags/"
+    weight = 4
