@@ -1,7 +1,7 @@
 +++
 title = 'Modeling and Compression'
 +++
-![Modeling and Compression](/static/image.pngimage.png)
+![banner](/images/banner.jpg)
 
 ## Think Your Model is Smart? It's Actually Just Really Good at Compression
 
