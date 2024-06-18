@@ -2,21 +2,19 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://entropy-warrior.github.io/posts/landing/</loc>
-    <lastmod>2024-06-11T00:00:00+00:00</lastmod>
-  </url><url>
     <loc>https://entropy-warrior.github.io/</loc>
-    <lastmod>2024-06-11T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://entropy-warrior.github.io/posts/</loc>
-    <lastmod>2024-06-11T00:00:00+00:00</lastmod>
+    <lastmod>2024-06-01T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://entropy-warrior.github.io/about/</loc>
     <lastmod>2024-06-01T00:00:00+00:00</lastmod>
   </url><url>
+    <loc>https://entropy-warrior.github.io/posts/landing/</loc>
+  </url><url>
     <loc>https://entropy-warrior.github.io/categories/</loc>
   </url><url>
     <loc>https://entropy-warrior.github.io/posts/3rd/</loc>
+  </url><url>
+    <loc>https://entropy-warrior.github.io/posts/</loc>
   </url><url>
     <loc>https://entropy-warrior.github.io/tags/</loc>
   </url>
