@@ -1,1 +1,0 @@
-Welcome to Lin's blog on lifelong learning and shifting perspectives! 
