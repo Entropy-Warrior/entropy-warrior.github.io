@@ -1,7 +1,7 @@
 +++
 title = 'Modeling and Compression'
 +++
-![banner](/images/banner.jpg)
+![banner](/images/blackhole.png)
 
 ## Think Your Model is Smart? It's Actually Just Really Good at Compression
 
@@ -28,7 +28,7 @@ This perspective unlocks some fresh insights:
 
 #### Chaos is Uncompressible
 
-Ever tried to summarize Wikipedia? Some systems are simply too broad, or have too much "entropy" (as an information theory geek would say), to model effectively. It's like trying to stuff a beach ball into a shoebox. The best and only model for chaos is chaos itself.
+Ever tried to summarize all Wikipedia pages? Some systems are simply too broad, or have too much "entropy" (as an information theory geek would say), to model effectively. It's like trying to stuff a beach ball into a shoebox. The best and only model for chaos is chaos itself.
 
 #### Not All Features Are Created Equal
 
