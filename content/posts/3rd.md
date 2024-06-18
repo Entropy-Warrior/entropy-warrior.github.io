@@ -1,7 +1,5 @@
 +++
 title = 'Modeling and Compression'
-date = 2024-05-30T12:55:28-05:00
-draft = false
 +++
 ![Modeling and Compression](/static/image.pngimage.png)
 
