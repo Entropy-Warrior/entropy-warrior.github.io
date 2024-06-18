@@ -2,23 +2,23 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Posts on Perspective Tensor</title>
-    <link>https://entropy-warrior.github.io/posts/</link>
+    <link>http://localhost:1313/posts/</link>
     <description>Recent content in Posts on Perspective Tensor</description>
     <generator>Hugo -- 0.127.0</generator>
     <language>en-us</language>
-    <atom:link href="https://entropy-warrior.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>👋 Welcome to Lin&#39;s blog!</title>
-      <link>https://entropy-warrior.github.io/posts/landing/</link>
+      <link>http://localhost:1313/posts/landing/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://entropy-warrior.github.io/posts/landing/</guid>
+      <guid>http://localhost:1313/posts/landing/</guid>
       <description>I hope you enjoy your visit. This blog is all about my journey of lifelong learning and shifting perspectives. As an &amp;ldquo;entropy warrior&amp;rdquo;, I love finding order and meaning in the chaos. Dive in with me as I explore data science, AI, and career growth, using first principles to see the world in new ways.</description>
     </item>
     <item>
       <title>Modeling and Compression</title>
-      <link>https://entropy-warrior.github.io/posts/3rd/</link>
+      <link>http://localhost:1313/posts/compression/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://entropy-warrior.github.io/posts/3rd/</guid>
+      <guid>http://localhost:1313/posts/compression/</guid>
       <description>Think Your Model is Smart? It&amp;rsquo;s Actually Just Really Good at Compression Data scientists are the modern-day wizards, conjuring insights from chaos. But have you ever considered that your magical models are essentially performing a high-tech form of data compression?
 Let&amp;rsquo;s break it down.
 Models: The Executive Summary of Reality Imagine cramming a semester&amp;rsquo;s worth of history into a bite-sized executive summary. That&amp;rsquo;s the essence of modeling. We take the complex and messy world and distill it down to the key ingredients that influence the outcome we care about.</description>
