@@ -23,11 +23,13 @@
       <description>test</description>
     </item>
     <item>
-      <title>Compression and Prediction</title>
+      <title>Modeling and Compression</title>
       <link>https://entropy-warrior.github.io/posts/3rd/</link>
       <pubDate>Thu, 30 May 2024 12:55:28 -0500</pubDate>
       <guid>https://entropy-warrior.github.io/posts/3rd/</guid>
-      <description>test</description>
+      <description>Think Your Model is Smart? It&amp;rsquo;s Actually Just Really Good at Compression Data scientists are the modern-day wizards, conjuring insights from chaos. But have you ever considered that your magical models are essentially performing a high-tech form of data compression?
+Let&amp;rsquo;s break it down.
+Models: The Executive Summary of Reality Imagine cramming a semester&amp;rsquo;s worth of history into a bite-sized executive summary. That&amp;rsquo;s the essence of modeling. We take the complex and messy world and distill it down to the key ingredients that influence the outcome we care about.</description>
     </item>
   </channel>
 </rss>
