@@ -1,6 +1,5 @@
 ---
 title: "Life Lessons from Machine Learning"
-date: 2023-10-27
 author: "Lin Wang"
 description: "Machines learn from us, we learn from their learnings."
 ---
