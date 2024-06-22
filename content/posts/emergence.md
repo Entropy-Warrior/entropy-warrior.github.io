@@ -14,7 +14,7 @@ The concept of emergency is deeply connected to the latest buzz in town: AI, esp
 
 If we break intelligence down to its core, it contains three parts: the ability to learn, the ability to adapt, and the ability to solve problems. All of these can be achieved by simple rules. The ability to learn has been shown to be achievable by backpropagation and gradient descent. Adaptation can be achieved by evolutionary processes such as random mutation and survival of the fittest. Problem-solving can be achieved by swarm intelligence methods such as cellular automata.
 
-The beauty of emergence lies in its simplicity. It shows us that even basic interactions can lead to profound outcomes. This idea applies across nature, technology, and our own thought processes, reminding us that the world is full of hidden wonders waiting to be discovered. As we explore these phenomena, we realize that complexity and intelligence don't always come from complex design. Sometimes, they naturally emerge from the simplest building blocks. This perspective is humbling and exciting, continually pushing the boundaries of our understanding.
+The beauty of emergence lies in its simplicity. It shows us that even basic interactions can lead to profound outcomes. This idea applies across nature, technology, and our own thought processes. One implication that excites me the most is that we should not be daunted by the complexity or emergent capabilities themselves. What we should be paying attention to are their fundamental units - studying and understanding them helps us learn and leverage much bigger and more complex systems in the ever-changing world.
 
 ---
 **Citations:**
