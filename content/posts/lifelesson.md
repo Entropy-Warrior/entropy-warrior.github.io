@@ -6,9 +6,6 @@ description: "Machines learn from us, we learn from their learnings."
 
 ![alt text](/images/lifelesson.png)
 
-
-Machines learn from us, we learn from their learnings.
-
 Lately, while diving into the latest and newest techniques in the world of AI, I couldn't help but notice a few concepts that bear striking similarities to life lessons we learn as humans.
 
 - **Reinforced Learning with Human Feedback (a.k.a. RLHF)**: In AI, this technique fine-tunes LLM’s performance based on human feedback. In real life, as we grow through school and society, our belief system is constantly fine-tuned. The people around us shape our worldviews.
