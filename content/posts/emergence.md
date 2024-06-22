@@ -4,6 +4,7 @@ draft: false
 ---
 
 ![alt text](/images/emergence.png)
+_(An image from Xavi Bou's project Ornitographies.)_
 
 Have you ever found bird flocks mesmerizing? I certainly do. But did you know that it's not the birds that memorize, but the flock itself? This behavior arises from simple rules and interactions. It's fascinating how a system with simple components and rules can create something incredibly complex and sophisticated. I find this theme absolutely captivating and wanted to share it with you.
 
