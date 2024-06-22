@@ -1,6 +1,5 @@
 ---
 title: "From Bird Flocks to Intelligence: The Power of Emergence"
-date: 2024-06-22
 draft: false
 ---
 
