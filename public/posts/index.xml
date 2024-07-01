@@ -38,5 +38,12 @@ Have you ever found bird flocks mesmerizing? I certainly do. But did you know th
 Let&amp;rsquo;s break it down.
 Models: The Executive Summary of Reality Imagine cramming a semester&amp;rsquo;s worth of history into a bite-sized executive summary. That&amp;rsquo;s the essence of modeling in the world of data science.</description>
     </item>
+    <item>
+      <title>State Space Models vs Transformers: A Nuanced Perspective on Sequence Modeling</title>
+      <link>https://entropy-warrior.github.io/posts/mamba/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>https://entropy-warrior.github.io/posts/mamba/</guid>
+      <description>Have you ever wondered how AI models make sense of sequential data like text, time series, or medical images as time series? Beside the &amp;ldquo;traditional&amp;rdquo; recurrent neural network, two powerful machine learning architectures recently emerged as frontrunners in this field: transformers and State Space Models (SSM). But what sets them apart, and how do they compare? Let&amp;rsquo;s delve into sequence modeling and examine the nuanced differences between these two &amp;ldquo;newcomers&amp;rdquo;.</description>
+    </item>
   </channel>
 </rss>
