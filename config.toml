@@ -6,6 +6,10 @@ theme = "PaperMod"
 [pagination]
   pagerSize = 10
 
+[taxonomies]
+  # Adding social taxonomy to fix Hugo 0.140 deprecation error
+  social = "social"
+
 [params]
   author = "Lin Wang"
   description = "Documenting my evolving perspectives on a lifelong journey of learning."
@@ -15,6 +19,9 @@ theme = "PaperMod"
   ShowToc = true
   disableHLJS = true
   comments = false
+  
+  # Dummy social section to prevent Hugo error - theme expects this
+  [params.social]
 
 [menu]
   [[menu.main]]
