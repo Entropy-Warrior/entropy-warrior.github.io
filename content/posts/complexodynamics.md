@@ -4,7 +4,7 @@ date: 2025-06-29
 draft: false
 ---
 
-![banner](/images/blackhole.png)
+![banner](/images/complexodynamics-banner.png)
 
 What exactly is complexity? What is there to compress? I've been preoccupied with these ideas recently, especially after exploring Ilya Sutskever's highly recommended top 30 ML reading list. This aligns closely with my writing about compression. It's just another way of looking at how to model complex yet intelligent systems — a.k.a. creating ML models or "AI," a term that's overused these days.
 
