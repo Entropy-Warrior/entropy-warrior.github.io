@@ -6,7 +6,7 @@ draft: false
 
 ![banner](/images/coffee-mixing-stages.png)
 
-What exactly is complexity? What is there to compress? I've been preoccupied with these ideas recently, especially after exploring Ilya Sutskever's highly recommended top 30 machine learning reading list. This aligns closely with my writing about compression. It's just another way of looking at how to model complex yet intelligent systems — a.k.a. creating ML models or "AI," a term that's overused these days.
+What exactly is complexity? What is there to model? I've been preoccupied with these ideas recently, especially after exploring Ilya Sutskever's highly recommended top 30 machine learning reading list. This aligns closely with my writing about compression. It's just another way of looking at how to model complex yet intelligent systems — a.k.a. creating ML models or "AI," a term that's overused these days.
 
 Anyway, let's start with a very "simple" concept — entropy. You might have noticed it in my handle, "entropy warrior." What exactly does entropy mean? You can easily find a definition with a quick Google search. Here's what the latest Google AI search function tells us:
 
@@ -14,7 +14,7 @@ Anyway, let's start with a very "simple" concept — entropy. You might have not
 
 I have to say, it's quite a good definition — albeit a bit too wordy for my taste. For me, in the simplest terms, entropy is "randomness." Anti-entropy is "order." A slight digression here: my handle's meaning should be obvious — I want to seek order and meaning from the randomness that we are all inevitably marching towards.
 
-With that out of the way, let's get back to what I want to discuss today — Complexodynamics. What is it exactly? After reading [Scott Aaronson's blog post](https://scottaaronson.blog/?p=762), which I highly recommend, it describes an intuitive but hard-to-define term: "sophistication," "interestingness," or in this tongue-in-cheek blog, "complexodynamics." A picture is worth a thousand words — let's take a look at the image above.
+With that out of the way, let's get back to what I want to discuss today — Complexodynamics. What is it exactly? After reading [Scott Aaronson's blog post](https://scottaaronson.blog/?p=762), which I highly recommend, it describes an intuitive but hard-to-define term: "sophistication," "interestingness," or in this tongue-in-cheek blog, "complexodynamics." A picture is worth a thousand words — let's take a look at the banner image above.
 
 From left to right, entropy increases constantly: first, milk and coffee are orderly separated, then they start mixing, creating beautiful and interesting patterns, and finally, they are thoroughly mixed.
 
