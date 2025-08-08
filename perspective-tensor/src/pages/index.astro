@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StructuredData from '../components/StructuredData.astro';
-import TensorMorph from '../react/TensorMorph.tsx';
+import NetworkCanvas from '../react/NetworkCanvas.tsx';
 
 const websiteData = {
   name: "Perspective Tensor",
@@ -23,7 +23,7 @@ const websiteData = {
   <StructuredData type="WebSite" data={websiteData} />
   <div class="py-20 md:py-28 text-center">
     <section class="mb-12" transition:name="hero" transition:animate="fade">
-      <TensorMorph client:idle />
+      <NetworkCanvas client:load />
     </section>
     <div class="max-w-3xl mx-auto px-4">
       <h1 class="text-5xl md:text-6xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">

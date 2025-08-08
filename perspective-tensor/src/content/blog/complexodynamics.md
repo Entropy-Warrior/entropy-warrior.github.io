@@ -1,5 +1,5 @@
 ---
-title: "Complextropy and Complexodynamics - Sutskever Reading List Series (1 of 30)"
+title: "Complextropy and Complexodynamics - Sutskever Reading List Series"
 description: "Exploring the concept of sophistication and meaningful complexity through the lens of coffee and milk mixing dynamics"
 pubDate: 2024-06-29
 draft: false
