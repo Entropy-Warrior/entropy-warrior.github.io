@@ -107,8 +107,8 @@ function toFloat32Segments(segments: Segment[], targetCount: number): Float32Arr
 }
 
 function makeColors(count: number, isDark = false): Float32Array {
-  const a = isDark ? "#3b82f6" : "#1e40af"; // Blue variants
-  const b = isDark ? "#8b5cf6" : "#7c3aed"; // Purple variants
+  const a = isDark ? "#6b7280" : "#374151"; // Gray variants
+  const b = isDark ? "#9ca3af" : "#4b5563"; // Gray variants
   const ca = new THREE.Color(a), cb = new THREE.Color(b);
   const colors = new Float32Array(count * 2 * 3);
   for (let i = 0; i < count; i++) {
@@ -281,8 +281,8 @@ function PointsCloud({ nodes, tRef, phase }: PointsCloudProps) {
                  document.documentElement.classList.contains('dark');
   
   // Different colors for different phases
-  const gridColor = isDark ? "#8b5cf6" : "#7c3aed"; // Purple for structured grid
-  const networkColor = isDark ? "#60a5fa" : "#3b82f6"; // Blue for dynamic network
+  const gridColor = isDark ? "#9ca3af" : "#4b5563"; // Gray for structured grid
+  const networkColor = isDark ? "#6b7280" : "#374151"; // Gray for dynamic network
   const pointColor = phase === "grid" ? gridColor : networkColor;
 
   return (

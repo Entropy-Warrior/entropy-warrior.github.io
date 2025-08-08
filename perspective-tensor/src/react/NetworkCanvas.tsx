@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 type Vec2 = { x: number; y: number };
 type Vec3 = { x: number; y: number; z: number };
 
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -186,6 +187,31 @@ function mapCubeFrom3D(p: Vec3): Vec2 {
   return { x: xr * s * 0.6, y: yr * s * 0.6 };
 }
 
+// Helper function to check if a node is a hub
+function isHubNode(index: number): boolean {
+  const nx = 9, ny = 9, nz = 9;
+  const [ix, iy, iz] = splitIndexToDims(index, [nx, ny, nz]);
+  const localX = ix % 3;
+  const localY = iy % 3;
+  const localZ = iz % 3;
+  return (localX === 1 && localY === 1 && localZ === 1);
+}
+
+// Helper function to get the hub node index for a given cluster
+function getHubNodeIndex(clusterId: number): number {
+  const nx = 9, ny = 9, nz = 9;
+  // Hub is at local position (1,1,1) within each 3x3x3 cluster
+  const clusterX = clusterId % 3;
+  const clusterY = Math.floor(clusterId / 3) % 3;
+  const clusterZ = Math.floor(clusterId / 9);
+  
+  const hubIx = clusterX * 3 + 1;
+  const hubIy = clusterY * 3 + 1;
+  const hubIz = clusterZ * 3 + 1;
+  
+  return hubIx + hubIy * nx + hubIz * nx * ny;
+}
+
 function mapGraphFrom3D(p: Vec3, index: number): Vec2 {
   // Map 9x9x9 cube to 3x3x3 clusters (27 total clusters)
   // Each cluster represents a 3x3x3 sub-cube from the original
@@ -203,30 +229,61 @@ function mapGraphFrom3D(p: Vec3, index: number): Vec2 {
   const localY = iy % 3;
   const localZ = iz % 3;
   
-  // Cluster center positions (3x3x3 = 27 clusters arranged nicely)
+  // Static random cluster centers - no movement patterns
   const clusterCenters = [];
-  for (let cz = 0; cz < 3; cz++) {
-    for (let cy = 0; cy < 3; cy++) {
-      for (let cx = 0; cx < 3; cx++) {
-        const x = (cx - 1) * 0.6; // -0.6, 0, 0.6
-        const y = (cy - 1) * 0.6; // -0.6, 0, 0.6
-        const depth = cz * 0.1; // Add some depth variation
-        clusterCenters.push({ x: x + depth * 0.2, y: y - depth * 0.1 });
-      }
-    }
+  
+  for (let id = 0; id < 27; id++) {
+    // Pure random positioning using deterministic seeds
+    const seed1 = (id * 73 + 17) % 1000;
+    const seed2 = (id * 131 + 37) % 1000;
+    
+    // Random positions across viewport
+    const x = (seed1 / 1000) * 1.8 - 0.9; // Range: [-0.9, 0.9]
+    const y = (seed2 / 1000) * 1.8 - 0.9; // Range: [-0.9, 0.9]
+    
+    clusterCenters.push({ x, y });
   }
   
   const clusterCenter = clusterCenters[clusterId];
   
-  // Position within cluster (small offset from cluster center)
-  const localOffsetX = (localX - 1) * 0.08; // -0.08, 0, 0.08
-  const localOffsetY = (localY - 1) * 0.08;
-  const localOffsetZ = (localZ - 1) * 0.02;
+  // Hub-and-spoke model: center node (1,1,1) is the hub, others are spokes
+  const isHub = (localX === 1 && localY === 1 && localZ === 1);
   
-  return {
-    x: clusterCenter.x + localOffsetX + localOffsetZ,
-    y: clusterCenter.y + localOffsetY - localOffsetZ * 0.5
-  };
+  // Each cluster has a different random radius
+  const radiusSeed = (clusterId * 127 + 43) % 1000;
+  const clusterRadius = 0.08 + (radiusSeed / 1000) * 0.12; // Radius varies from 0.08 to 0.20
+  
+  if (isHub) {
+    // Hub can be anywhere within the cluster area (not necessarily center)
+    const hubSeed1 = (clusterId * 89 + 31) % 1000;
+    const hubSeed2 = (clusterId * 157 + 67) % 1000;
+    
+    // Random position within the cluster circle for the hub
+    const hubRadius = Math.sqrt(hubSeed1 / 1000) * clusterRadius * 0.6; // Hub within 60% of cluster radius
+    const hubAngle = (hubSeed2 / 1000) * Math.PI * 2;
+    
+    return {
+      x: clusterCenter.x + Math.cos(hubAngle) * hubRadius,
+      y: clusterCenter.y + Math.sin(hubAngle) * hubRadius
+    };
+  } else {
+    // Spoke nodes randomly scattered within the circular cluster area
+    const nodeId = localX + localY * 3 + localZ * 9;
+    const seed1 = (nodeId * 41 + clusterId * 17) % 1000;
+    const seed2 = (nodeId * 67 + clusterId * 23) % 1000;
+    
+    // Truly random position within the circular area (uniform distribution)
+    const distance = Math.sqrt(seed1 / 1000) * clusterRadius; // sqrt for uniform distribution in circle
+    const angle = (seed2 / 1000) * Math.PI * 2;
+    
+    const spokeX = clusterCenter.x + Math.cos(angle) * distance;
+    const spokeY = clusterCenter.y + Math.sin(angle) * distance;
+    
+    return {
+      x: spokeX,
+      y: spokeY
+    };
+  }
 }
 
 function mapPerceptronFrom3D(p: Vec3, index: number, layers = 5): Vec2 {
@@ -239,13 +296,23 @@ function mapPerceptronFrom3D(p: Vec3, index: number, layers = 5): Vec2 {
   const clusterY = Math.floor(iy / 3);
   const clusterZ = Math.floor(iz / 3);
   
-  // Map clusters to layers based on their X position (like layers in NN)
-  const l = clusterX; // 0, 1, or 2 becomes layers 0, 1, 2
-  const xCenter = -1 + (l / (layers - 1)) * 2;
+  // Map 27 clusters (3x3x3) to 5 layers more evenly
+  // We'll distribute the 27 clusters across 5 layers: [5, 6, 5, 6, 5]
+  const clusterId = clusterX + clusterY * 3 + clusterZ * 9;
   
-  // Layer-specific height variations
+  // Distribute clusters across 5 layers
+  let layer = 0;
+  if (clusterId < 5) layer = 0;
+  else if (clusterId < 11) layer = 1;
+  else if (clusterId < 16) layer = 2;
+  else if (clusterId < 22) layer = 3;
+  else layer = 4;
+  
+  const xCenter = -1 + (layer / (layers - 1)) * 2;
+  
+  // Layer-specific height variations for 5 layers
   const layerHeights = [0.5, 0.7, 0.9, 0.7, 0.5];
-  const layerHeight = layerHeights[l] || 0.6;
+  const layerHeight = layerHeights[layer];
   
   // Use cluster Y and Z position to determine position within layer
   const clusterY_norm = (clusterY - 1) / 1; // -1 to 1
@@ -256,9 +323,13 @@ function mapPerceptronFrom3D(p: Vec3, index: number, layers = 5): Vec2 {
   const localY = iy % 3;
   const localZ = iz % 3;
   
+  // Add some vertical spread within each layer based on cluster position
+  const clusterInLayer = clusterId % Math.ceil(27 / 5);
+  const verticalSpread = (clusterInLayer / Math.ceil(27 / 5) - 0.5) * 0.8;
+  
   // Combine cluster and local positioning
-  const baseY = (clusterY_norm * 0.6 + (localY - 1) * 0.1) * layerHeight;
-  const depthOffset = (clusterZ_norm * 0.1 + (localZ - 1) * 0.02);
+  const baseY = (clusterY_norm * 0.4 + (localY - 1) * 0.08 + verticalSpread) * layerHeight;
+  const depthOffset = (clusterZ_norm * 0.08 + (localZ - 1) * 0.02);
   
   return { 
     x: xCenter * 0.98 + (localX - 1) * 0.02, // Slight local X variation
@@ -669,36 +740,17 @@ export default function NetworkCanvas({ nodeCount = 729 }: { nodeCount?: number 
       }
       
       const scale = lerp(baseScale, nnScale, scaleBlend);
-        
-      const driftAmp = 0.008; // very subtle and constant across phases
 
       const pts: Vec2[] = new Array(nodeCount);
       for (let i = 0; i < nodeCount; i++) {
         const a = current[i];
         const b = target[i];
         
-        // Enhanced morphing with organic randomness during transitions
+        // Clean morphing without any time-based movement
         const baseX = lerp(a.x, b.x, e);
         const baseY = lerp(a.y, b.y, e);
         
-        // Subtle continuous drift
-        const driftX = Math.sin(now * 0.001 + i) * driftAmp;
-        const driftY = Math.cos(now * 0.0013 + i * 1.7) * driftAmp;
-        
-        // Add morphing-specific randomness - stronger during transition (e=0.5), weaker at endpoints
-        const morphIntensity = Math.sin(e * Math.PI) * 0.02; // Peak at 50% morph
-        const morphVariationX = Math.sin(now * 0.0007 + i * 2.3 + e * 5) * morphIntensity;
-        const morphVariationY = Math.cos(now * 0.0009 + i * 1.9 + e * 7) * morphIntensity;
-        
-        // Perlin-like noise for organic feel during transitions
-        const noisePhase = e * Math.PI * 2 + i * 0.1;
-        const organicX = (Math.sin(noisePhase * 1.7) + Math.sin(noisePhase * 3.3) * 0.5) * morphIntensity * 0.5;
-        const organicY = (Math.cos(noisePhase * 2.1) + Math.cos(noisePhase * 4.7) * 0.5) * morphIntensity * 0.5;
-        
-        const nx = baseX + driftX + morphVariationX + organicX;
-        const ny = baseY + driftY + morphVariationY + organicY;
-        
-        pts[i] = { x: centerX + nx * scale, y: centerY + ny * scale };
+        pts[i] = { x: centerX + baseX * scale, y: centerY + baseY * scale };
       }
 
       // Calculate blend factors for smooth transitions between connection types
@@ -783,63 +835,125 @@ export default function NetworkCanvas({ nodeCount = 729 }: { nodeCount?: number 
             }
           }
         }
+        
+        // Ensure rightmost column vertical connections
+        for (let iz = 0; iz < nz; iz++) {
+          for (let iy = 0; iy < ny - 1; iy++) {
+            const ix = nx - 1; // rightmost column
+            const currentIdx = ix + iy * nx + iz * nx * ny;
+            const upIdx = ix + (iy + 1) * nx + iz * nx * ny;
+            if (currentIdx < nodeCount && upIdx < nodeCount) {
+              ctx.moveTo(pts[currentIdx].x, pts[currentIdx].y);
+              ctx.lineTo(pts[upIdx].x, pts[upIdx].y);
+            }
+          }
+        }
+        
+        // Ensure horizontal connections TO the rightmost column
+        for (let iz = 0; iz < nz; iz++) {
+          for (let iy = 0; iy < ny; iy++) {
+            const rightmostIx = nx - 1; // rightmost column (ix = 8)
+            const secondToRightIx = nx - 2; // second to rightmost (ix = 7)
+            const rightmostIdx = rightmostIx + iy * nx + iz * nx * ny;
+            const secondToRightIdx = secondToRightIx + iy * nx + iz * nx * ny;
+            if (rightmostIdx < nodeCount && secondToRightIdx < nodeCount) {
+              ctx.moveTo(pts[secondToRightIdx].x, pts[secondToRightIdx].y);
+              ctx.lineTo(pts[rightmostIdx].x, pts[rightmostIdx].y);
+            }
+          }
+        }
         ctx.stroke();
       }
 
-      // Always compute proximity-based connections if needed
-      let proximityBands: { from: Vec2; to: Vec2 }[][] = [[], [], []];
-      if (proximityAlpha > 0) {
-        const cellSize = connectionsThreshold;
-        const grid = new Map<string, number[]>();
-        const keyOf = (x: number, y: number) => `${Math.floor(x / cellSize)}_${Math.floor(y / cellSize)}`;
-        for (let i = 0; i < pts.length; i++) {
-          const k = keyOf(pts[i].x, pts[i].y);
-          const arr = grid.get(k);
-          if (arr) arr.push(i);
-          else grid.set(k, [i]);
+      // Hub-and-spoke connections for knowledge graph (ONLY during graph phase)
+      let hubConnections: { from: Vec2; to: Vec2 }[] = [];
+      let hubToHubConnections: { from: Vec2; to: Vec2 }[] = [];
+      
+      // Only show hub connections when in PURE graph state (no transitions)
+      const showHubConnections = (currentIsGraph && targetIsGraph);
+      
+      if (showHubConnections) {
+        // 1. Connect spokes to their hubs within each cluster
+        for (let clusterId = 0; clusterId < 27; clusterId++) {
+          const hubIndex = getHubNodeIndex(clusterId);
+          if (hubIndex >= nodeCount) continue;
+          
+          const hubPos = pts[hubIndex];
+          
+          // Connect all nodes in this cluster to the hub (ONLY within cluster)
+          for (let i = 0; i < nodeCount; i++) {
+            if (i === hubIndex) continue; // Skip hub itself
+            
+            const [ix, iy, iz] = splitIndexToDims(i, [9, 9, 9]);
+            const nodeClusterX = Math.floor(ix / 3);
+            const nodeClusterY = Math.floor(iy / 3);
+            const nodeClusterZ = Math.floor(iz / 3);
+            const nodeClusterId = nodeClusterX + nodeClusterY * 3 + nodeClusterZ * 9;
+            
+            if (nodeClusterId === clusterId) {
+              // This node belongs to the current cluster - connect to hub only
+              hubConnections.push({ from: pts[i], to: hubPos });
+            }
+          }
         }
-        const neighborCount = new Array(pts.length).fill(0);
-        const maxNeighbors = 6; // Allow more connections for better clustering
-        for (let i = 0; i < pts.length; i++) {
-          const pi = pts[i];
-          const cx = Math.floor(pi.x / cellSize);
-          const cy = Math.floor(pi.y / cellSize);
-          for (let gx = cx - 1; gx <= cx + 1; gx++) {
-            for (let gy = cy - 1; gy <= cy + 1; gy++) {
-              const bucket = grid.get(`${gx}_${gy}`);
-              if (!bucket) continue;
-              for (const j of bucket) {
-                if (j <= i) continue;
-                if (neighborCount[i] >= maxNeighbors && neighborCount[j] >= maxNeighbors) continue;
-                const dx = pi.x - pts[j].x;
-                const dy = pi.y - pts[j].y;
-                const d = Math.hypot(dx, dy);
-                if (d < connectionsThreshold) {
-                  const tNorm = 1 - d / connectionsThreshold;
-                  const bandIdx = tNorm > 0.66 ? 0 : tNorm > 0.33 ? 1 : 2;
-                  proximityBands[bandIdx].push({ from: pi, to: pts[j] });
-                  neighborCount[i]++;
-                  neighborCount[j]++;
-                }
-              }
+        
+        // 2. Connect hubs to nearby hubs
+        const hubIndices = [];
+        for (let clusterId = 0; clusterId < 27; clusterId++) {
+          const hubIndex = getHubNodeIndex(clusterId);
+          if (hubIndex < nodeCount) {
+            hubIndices.push(hubIndex);
+          }
+        }
+        
+        // Connect each hub to its nearest 2-3 hubs (avoid duplicates)
+        const hubConnected = new Set<string>();
+        for (const hubIdx of hubIndices) {
+          const hubPos = pts[hubIdx];
+          const distances = hubIndices
+            .filter(otherIdx => otherIdx !== hubIdx)
+            .map(otherIdx => ({
+              idx: otherIdx,
+              dist: Math.hypot(pts[otherIdx].x - hubPos.x, pts[otherIdx].y - hubPos.y)
+            }))
+            .sort((a, b) => a.dist - b.dist)
+            .slice(0, 2); // Connect to 2 nearest hubs (reduced for clarity)
+            
+          for (const { idx } of distances) {
+            // Avoid duplicate connections (A->B and B->A)
+            const connectionKey = hubIdx < idx ? `${hubIdx}-${idx}` : `${idx}-${hubIdx}`;
+            if (!hubConnected.has(connectionKey)) {
+              hubConnected.add(connectionKey);
+              hubToHubConnections.push({ from: hubPos, to: pts[idx] });
             }
           }
         }
       }
 
-      // Draw proximity-based connections with blended alpha
-      if (proximityAlpha > 0) {
-        const baseBandAlpha = dark ? [0.22, 0.15, 0.08] : [0.18, 0.12, 0.06];
-        for (let b = 0; b < proximityBands.length; b++) {
-          const segs = proximityBands[b];
-          if (segs.length === 0) continue;
+      // Draw hub-and-spoke connections with blended alpha (ONLY during graph phase)
+      if (showHubConnections) {
+        // Draw spoke-to-hub connections (lighter)
+        if (hubConnections.length > 0) {
+          ctx.globalAlpha = (dark ? 0.15 : 0.12);
           ctx.beginPath();
-          for (const s of segs) {
-            ctx.moveTo(s.from.x, s.from.y);
-            ctx.lineTo(s.to.x, s.to.y);
+          for (const conn of hubConnections) {
+            ctx.moveTo(conn.from.x, conn.from.y);
+            ctx.lineTo(conn.to.x, conn.to.y);
           }
-          ctx.globalAlpha = baseBandAlpha[b] * proximityAlpha;
           ctx.stroke();
+        }
+        
+        // Draw hub-to-hub connections (stronger)
+        if (hubToHubConnections.length > 0) {
+          ctx.globalAlpha = (dark ? 0.6 : 0.5);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          for (const conn of hubToHubConnections) {
+            ctx.moveTo(conn.from.x, conn.from.y);
+            ctx.lineTo(conn.to.x, conn.to.y);
+          }
+          ctx.stroke();
+          ctx.lineWidth = 1; // Reset line width
         }
       }
 
@@ -847,14 +961,26 @@ export default function NetworkCanvas({ nodeCount = 729 }: { nodeCount?: number 
       if (perceptronAlpha > 0) {
         ctx.globalAlpha = (dark ? 0.25 : 0.20) * perceptronAlpha;
         
-        // Group nodes by their cluster layer (0, 1, 2 based on clusterX)
-        const layers = 3;
+        // Group nodes by their neural network layer (0-4 for 5 layers)
+        const layers = 5;
         const nodesByLayer: number[][] = Array.from({ length: layers }, () => []);
         
         for (let i = 0; i < nodeCount; i++) {
           const [ix, iy, iz] = splitIndexToDims(i, [9, 9, 9]);
-          const clusterX = Math.floor(ix / 3); // 0, 1, or 2
-          nodesByLayer[clusterX].push(i);
+          const clusterX = Math.floor(ix / 3);
+          const clusterY = Math.floor(iy / 3);
+          const clusterZ = Math.floor(iz / 3);
+          const clusterId = clusterX + clusterY * 3 + clusterZ * 9;
+          
+          // Distribute clusters across 5 layers (same logic as mapPerceptronFrom3D)
+          let layer = 0;
+          if (clusterId < 5) layer = 0;
+          else if (clusterId < 11) layer = 1;
+          else if (clusterId < 16) layer = 2;
+          else if (clusterId < 22) layer = 3;
+          else layer = 4;
+          
+          nodesByLayer[layer].push(i);
         }
         
         // Connect nodes between adjacent layers only
@@ -903,9 +1029,12 @@ export default function NetworkCanvas({ nodeCount = 729 }: { nodeCount?: number 
 
       // Draw nodes
       ctx.fillStyle = node;
-      for (const p of pts) {
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+        // Make hub nodes slightly larger
+        const radius = isHubNode(i) ? 2.2 : 1.5;
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.fill();
       }
 

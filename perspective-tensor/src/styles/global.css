@@ -7,7 +7,7 @@
   /* Light mode typography colors */
   --prose-body: #374151;
   --prose-headings: #111827;
-  --prose-links: #2563eb;
+  --prose-links: #374151;
   --prose-bold: #111827;
   --prose-quotes: #4b5563;
   --prose-quote-borders: #d1d5db;
@@ -22,7 +22,7 @@
   /* Dark mode typography colors */
   --prose-body: #d1d5db;
   --prose-headings: #f9fafb;
-  --prose-links: #60a5fa;
+  --prose-links: #d1d5db;
   --prose-bold: #f9fafb;
   --prose-quotes: #9ca3af;
   --prose-quote-borders: #4b5563;
@@ -40,7 +40,29 @@
 
 html, body {
   min-height: 100%;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* Distinctive font for headers and footer */
+.font-display {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+}
+
+/* Dynamic footer positioning based on viewport height */
+footer {
+  margin-top: clamp(0.5rem, 1vh, 1rem);
+}
+
+@media (min-height: 800px) {
+  footer {
+    margin-top: clamp(0.75rem, 1.5vh, 1.5rem);
+  }
+}
+
+@media (min-height: 1000px) {
+  footer {
+    margin-top: clamp(1rem, 2vh, 2rem);
+  }
 }
 
 /* Accessibility improvements */
@@ -69,25 +91,25 @@ html, body {
 
 /* Enhanced focus states */
 :focus-visible {
-  outline: 2px solid theme('colors.blue.500');
+  outline: 2px solid theme('colors.gray.500');
   outline-offset: 2px;
 }
 
-/* Smooth transitions */
+/* Smooth transitions - excluding theme colors */
 * {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-property: border-color, text-decoration-color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
 
-/* Link styles */
+/* Link styles - hover only */
 a {
-  transition: all 150ms ease-in-out;
+  transition: opacity 150ms ease-in-out;
 }
 
 /* Button focus states */
 button:focus-visible {
-  outline: 2px solid theme('colors.blue.500');
+  outline: 2px solid theme('colors.gray.500');
   outline-offset: 2px;
 }
 
@@ -108,7 +130,7 @@ img {
   .dark {
     --tw-prose-body: theme('colors.gray.700');
     --tw-prose-headings: theme('colors.gray.900');
-    --tw-prose-links: theme('colors.blue.600');
+    --tw-prose-links: theme('colors.gray.600');
     --tw-prose-code: theme('colors.gray.900');
   }
 }
