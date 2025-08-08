@@ -3,11 +3,12 @@ import { useEffect, useRef } from 'react';
 // Configuration - single source of truth
 const CFG = {
   timing: { pauseMs: 1500, morphMs: 5000 }, // Slower animation
-  graph: { hubs: 7, hubRadius: 0.18, hubCenterK: 3 },
-  nn: { layerParts: [2, 3, 4, 5, 3, 2, 1], minDeg: 2, maxDeg: 6, layerSpread: 3.5, layerJitter: 0.15 },
-  tensor: { grid: 9, spacing: 0.25, rotationX: -0.35, rotationY: 0.5, scale: 1.0 }, // Smaller spacing to fit in render area
+  graph: { hubs: 7, hubRadius: 0.18, hubCenterK: 3, minHubDistance: 0.45, heightScale: 1.4 },
+  nn: { layerParts: [2, 3, 4, 5, 3, 2, 1], minDeg: 2, maxDeg: 6, layerSpread: 3.5, layerJitter: 0.15, heightScale: 1.5 },
+  tensor: { grid: 9, spacing: 0.35, rotationX: -0.35, rotationY: 0.5, scale: 1.3 }, // Increased spacing and scale for larger cube
   line: { brightnessMin: 0.25, brightnessMax: 1.0 },
-  seeds: { base: 1337, graph: 9001, nn: 4242 },
+  brownian: { amplitude: 1.118, speed: 0.004 }, // More pronounced jiggle amplitude and speed
+
 };
 
 const N = CFG.tensor.grid ** 3; // 729 dots
@@ -34,33 +35,6 @@ interface Machine {
   startTime: number;
 }
 
-// Seeded random number generator
-class SeededRandom {
-  private seed: number;
-
-  constructor(seed: number) {
-    this.seed = seed;
-  }
-
-  next(): number {
-    this.seed = (this.seed * 1664525 + 1013904223) % (2 ** 32);
-    return this.seed / (2 ** 32);
-  }
-
-  nextInRange(min: number, max: number): number {
-    return min + this.next() * (max - min);
-  }
-
-  shuffle<T>(array: T[]): T[] {
-    const result = [...array];
-    for (let i = result.length - 1; i > 0; i--) {
-      const j = Math.floor(this.next() * (i + 1));
-      [result[i], result[j]] = [result[j], result[i]];
-    }
-    return result;
-  }
-}
-
 // Utility functions
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -79,6 +53,13 @@ function distance3D(a: Vec3, b: Vec3): number {
   const dy = a[1] - b[1];
   const dz = a[2] - b[2];
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function distanceSquared3D(a: Vec3, b: Vec3): number {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  const dz = a[2] - b[2];
+  return dx * dx + dy * dy + dz * dz;
 }
 
 function nextState(s: State): State {
@@ -111,66 +92,67 @@ function centerPositionsAndGetBounds(positions: Vec3[], shiftLeft: number = 0): 
 }
 
 // Layout generators
-function generateTensorLayout(): Layout {
+function generateTensorLayout(rotOverride?: { x: number; y: number }): Layout {
   const positions: Vec3[] = [];
   const edges: Edge[] = [];
   const grid = CFG.tensor.grid;
   const spacing = CFG.tensor.spacing;
-  const center = (grid - 1) * spacing / 2;
-  const rotX = CFG.tensor.rotationX;
-  const rotY = CFG.tensor.rotationY;
+  const center = (grid - 1) * spacing * 0.5; // Optimized division
+  const rotX = rotOverride?.x ?? CFG.tensor.rotationX;
+  const rotY = rotOverride?.y ?? CFG.tensor.rotationY;
   const scale = CFG.tensor.scale;
 
-  // Pre-calculate rotation matrices
+  // Pre-calculate rotation matrices and combined scaling
   const sinX = Math.sin(rotX);
   const cosX = Math.cos(rotX);
   const sinY = Math.sin(rotY);
   const cosY = Math.cos(rotY);
+  const scaledSpacing = spacing * scale;
 
-  // Generate 9x9x9 grid positions with rotation and scaling
+  // Generate 9x9x9 grid positions with optimized rotation and scaling
   for (let z = 0; z < grid; z++) {
+    const pzBase = (z * scaledSpacing - center * scale);
     for (let y = 0; y < grid; y++) {
+      const pyBase = (y * scaledSpacing - center * scale);
       for (let x = 0; x < grid; x++) {
-        // Original position
-        let px = (x * spacing - center) * scale;
-        let py = (y * spacing - center) * scale;
-        let pz = (z * spacing - center) * scale;
+        const pxBase = (x * scaledSpacing - center * scale);
 
-        // Apply Y rotation first
-        const x1 = px * cosY + pz * sinY;
-        const z1 = -px * sinY + pz * cosY;
+        // Apply Y rotation first - optimized
+        const x1 = pxBase * cosY + pzBase * sinY;
+        const z1 = pzBase * cosY - pxBase * sinY;
         
-        // Then X rotation
-        const y2 = py * cosX - z1 * sinX;
-        const z2 = py * sinX + z1 * cosX;
+        // Then X rotation - optimized
+        const y2 = pyBase * cosX - z1 * sinX;
+        const z2 = pyBase * sinX + z1 * cosX;
 
         positions.push([x1, y2, z2]);
       }
     }
   }
 
-  // Generate grid edges (connect each dot to +x, +y, +z neighbors)
+  // Generate grid edges (connect each dot to +x, +y, +z neighbors) - optimized
+  const gridSq = grid * grid;
   for (let z = 0; z < grid; z++) {
+    const zOffset = z * gridSq;
     for (let y = 0; y < grid; y++) {
+      const yOffset = y * grid;
+      const baseIdx = zOffset + yOffset;
       for (let x = 0; x < grid; x++) {
-        const idx = z * grid * grid + y * grid + x;
+        const idx = baseIdx + x;
         
         // Connect to +x neighbor
         if (x < grid - 1) {
-          const neighborIdx = z * grid * grid + y * grid + (x + 1);
-          edges.push([idx, neighborIdx]);
+          edges.push([idx, idx + 1]);
         }
         
         // Connect to +y neighbor
         if (y < grid - 1) {
-          const neighborIdx = z * grid * grid + (y + 1) * grid + x;
-          edges.push([idx, neighborIdx]);
+          edges.push([idx, idx + grid]);
         }
         
         // Connect to +z neighbor
         if (z < grid - 1) {
-          const neighborIdx = (z + 1) * grid * grid + y * grid + x;
-          edges.push([idx, neighborIdx]);
+          edges.push([idx, idx + gridSq]);
         }
       }
     }
@@ -196,27 +178,59 @@ function generateTensorLayout(): Layout {
 }
 
 function generateGraphLayout(): Layout {
-  const rng = new SeededRandom(Math.floor(Math.random() * 1000000));
   const positions: Vec3[] = new Array(N);
   const edges: Edge[] = [];
   
   const hubs = CFG.graph.hubs;
   const hubRadius = CFG.graph.hubRadius;
   const hubCenterK = CFG.graph.hubCenterK;
+  const minHubDistance = CFG.graph.minHubDistance ?? hubRadius * 2.2;
+  const heightScale = CFG.graph.heightScale;
   
-  // Choose random hub indices
-  const hubIndices = rng.shuffle(Array.from({ length: N }, (_, i) => i)).slice(0, hubs);
+  // Choose random hub indices  
+  const allIndices = Array.from({ length: N }, (_, i) => i);
+  // Fisher-Yates shuffle using Math.random()
+  for (let i = allIndices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
+  }
+  const hubIndices = allIndices.slice(0, hubs);
   
-  // Position hub centers randomly in 3D space, accounting for cluster radius
-  const maxPos = 1.4 - hubRadius; // Leave room for cluster radius
+  // Position hub centers randomly in 3D space ensuring minimum inter-hub distance
+  const maxPosX = 1.4 - hubRadius; // Leave room for cluster radius in X
+  const maxPosY = 1.4 - hubRadius; // Leave room for cluster radius in Y  
+  const maxPosZ = 1.4 - hubRadius; // Leave room for cluster radius in Z
   const hubPositions: Vec3[] = [];
   for (let i = 0; i < hubs; i++) {
-    hubPositions.push([
-      rng.nextInRange(-maxPos, maxPos),
-      rng.nextInRange(-maxPos, maxPos),
-      rng.nextInRange(-maxPos, maxPos)
-    ]);
-    positions[hubIndices[i]] = hubPositions[i];
+    let chosen: Vec3 | null = null;
+    let bestCandidate: Vec3 = [0, 0, 0];
+    let bestMinDist = -Infinity;
+    const attempts = 600;
+    for (let a = 0; a < attempts; a++) {
+      const candidate: Vec3 = [
+        Math.random() * (2 * maxPosX) - maxPosX,
+        Math.random() * (2 * maxPosY * heightScale) - maxPosY * heightScale,
+        Math.random() * (2 * maxPosZ) - maxPosZ,
+      ];
+      let minDistToExisting = Infinity;
+      for (let j = 0; j < hubPositions.length; j++) {
+        const d = distance3D(candidate, hubPositions[j]);
+        if (d < minDistToExisting) minDistToExisting = d;
+        // Early exit if already below best or threshold
+        if (minDistToExisting < bestMinDist && bestMinDist >= minHubDistance) break;
+      }
+      if (minDistToExisting > bestMinDist) {
+        bestMinDist = minDistToExisting;
+        bestCandidate = candidate;
+      }
+      if (minDistToExisting >= minHubDistance) {
+        chosen = candidate;
+        break;
+      }
+    }
+    const finalPos = chosen ?? bestCandidate;
+    hubPositions.push(finalPos);
+    positions[hubIndices[i]] = finalPos;
   }
   
   // Assign remaining dots to hubs and position them
@@ -232,9 +246,9 @@ function generateGraphLayout(): Layout {
       const hubCenter = hubPositions[h];
       
       // Random position within hub radius
-      const theta = rng.next() * 2 * Math.PI;
-      const phi = rng.next() * Math.PI;
-      const r = rng.next() * hubRadius;
+      const theta = Math.random() * 2 * Math.PI;
+      const phi = Math.random() * Math.PI;
+      const r = Math.random() * hubRadius;
       
       positions[dotIdx] = [
         hubCenter[0] + r * Math.sin(phi) * Math.cos(theta),
@@ -275,13 +289,22 @@ function generateGraphLayout(): Layout {
 }
 
 function generateNNLayout(): Layout {
-  const rng = new SeededRandom(CFG.seeds.nn);
   const positions: Vec3[] = new Array(N);
   const edges: Edge[] = [];
   
+  // Randomize layer distribution while maintaining relative proportions
   const layerParts = CFG.nn.layerParts;
   const totalParts = layerParts.reduce((a, b) => a + b, 0);
-  const layerCounts = layerParts.map(parts => Math.round(N * parts / totalParts));
+  const heightScale = CFG.nn.heightScale;
+  
+  // Add some randomness to layer sizes (±20% variation)
+  const randomizedParts = layerParts.map(parts => {
+    const variation = 0.2; // 20% variation
+    const multiplier = 1 + (Math.random() * 2 - 1) * variation;
+    return Math.max(0.1, parts * multiplier); // Ensure minimum size
+  });
+  const randomizedTotal = randomizedParts.reduce((a, b) => a + b, 0);
+  const layerCounts = randomizedParts.map(parts => Math.round(N * parts / randomizedTotal));
   
   // Adjust to exact N
   let diff = layerCounts.reduce((a, b) => a + b, 0) - N;
@@ -311,12 +334,13 @@ function generateNNLayout(): Layout {
     // Calculate layer height based on relative layer size (layerParts)
     const maxLayerParts = Math.max(...layerParts);
     const layerHeightFactor = layerParts[layer] / maxLayerParts;
-    const layerHeight = layerHeightFactor * 2; // Scale height based on layer size
+    const layerHeight = layerHeightFactor * 2 * heightScale; // Scale height based on layer size and height scale
     
     for (let i = 0; i < count; i++) {
-      // Center nodes vertically within the layer's allocated height
-      const y = (count > 1 ? -layerHeight/2 + (i / (count - 1)) * layerHeight : 0) + rng.nextInRange(-CFG.nn.layerJitter, CFG.nn.layerJitter);
-      const z = rng.nextInRange(-CFG.nn.layerJitter, CFG.nn.layerJitter);
+      // Center nodes vertically within the layer's allocated height with randomization
+      const baseY = count > 1 ? -layerHeight/2 + (i / (count - 1)) * layerHeight : 0;
+      const y = baseY + (Math.random() * 2 - 1) * CFG.nn.layerJitter;
+      const z = (Math.random() * 2 - 1) * CFG.nn.layerJitter;
       
       positions[nodeIdx] = [x - 0.7, y, z]; // Shift all NN nodes left
       layerNodeIndices.push(nodeIdx);
@@ -338,7 +362,12 @@ function generateNNLayout(): Layout {
       );
       
       // Connect to random nodes in next layer
-      const shuffledTargets = rng.shuffle([...nextLayer]);
+      const shuffledTargets = [...nextLayer];
+      // Fisher-Yates shuffle using Math.random()
+      for (let i = shuffledTargets.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledTargets[i], shuffledTargets[j]] = [shuffledTargets[j], shuffledTargets[i]];
+      }
       const selectedTargets = shuffledTargets.slice(0, targetCount);
       
       for (const toNode of selectedTargets) {
@@ -378,21 +407,43 @@ export default function SimplifiedNetworkCanvas({ nodeCount = N }: { nodeCount?:
     let height = 0;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    // Generate layouts once
+    // Generate initial layouts - will be regenerated on state transitions for true randomness
+    const angleJitter = 0.6; // radians - increased for more variation
+    
+    const generateRandomTensorRotation = () => {
+      // Constrain angles to ensure good 3D perspective
+      // X rotation: -60° to -15° (good top-down view)
+      // Y rotation: 15° to 75° (good side angle)
+      const minX = -Math.PI / 3;  // -60°
+      const maxX = -Math.PI / 12; // -15°
+      const minY = Math.PI / 12;  // 15°
+      const maxY = 5 * Math.PI / 12; // 75°
+      
+      return {
+        x: minX + Math.random() * (maxX - minX),
+        y: minY + Math.random() * (maxY - minY),
+      };
+    };
+
     const layouts = {
-      [State.Tensor]: generateTensorLayout(),
+      [State.Tensor]: generateTensorLayout(generateRandomTensorRotation()),
       [State.Graph]: generateGraphLayout(),
       [State.NN]: generateNNLayout(),
     };
 
-    // Compute global model extents across all states so scale stays constant
-    const allBounds = [
-      layouts[State.Tensor].bounds,
-      layouts[State.Graph].bounds,
-      layouts[State.NN].bounds,
-    ];
-    const globalModelWidth = Math.max(...allBounds.map(b => b.maxX - b.minX));
-    const globalModelHeight = Math.max(...allBounds.map(b => b.maxY - b.minY));
+    // Calculate individual scale factors for each state to maximize canvas usage
+    const calculateScaleFactor = (bounds: { minX: number; maxX: number; minY: number; maxY: number }, availableW: number, availableH: number) => {
+      const modelWidth = Math.max(bounds.maxX - bounds.minX, 1e-6);
+      const modelHeight = Math.max(bounds.maxY - bounds.minY, 1e-6);
+      return Math.min(availableW / modelWidth, availableH / modelHeight);
+    };
+
+    // Store individual bounds for each state
+    const stateBounds = {
+      [State.Tensor]: layouts[State.Tensor].bounds,
+      [State.Graph]: layouts[State.Graph].bounds,
+      [State.NN]: layouts[State.NN].bounds,
+    };
 
     // State machine
     const machine: Machine = {
@@ -434,6 +485,17 @@ export default function SimplifiedNetworkCanvas({ nodeCount = N }: { nodeCount?:
     const onWinResize = () => resize();
     window.addEventListener('resize', onWinResize);
 
+    // Reusable projection buffers to reduce per-frame allocations
+    const projectedX: number[] = new Array(N);
+    const projectedY: number[] = new Array(N);
+
+    // Brownian motion offsets for each dot (persistent across frames)
+    const brownianOffsetX: number[] = new Array(N).fill(0);
+    const brownianOffsetY: number[] = new Array(N).fill(0);
+    const brownianOffsetZ: number[] = new Array(N).fill(0);
+
+    let rafId = 0;
+
     const draw = (now: number) => {
       if (destroyed) return;
 
@@ -446,6 +508,16 @@ export default function SimplifiedNetworkCanvas({ nodeCount = N }: { nodeCount?:
       // Update state machine
       if (machine.phase === 'pause') {
         if (machine.elapsed >= CFG.timing.pauseMs) {
+          // Before starting morph, regenerate the target layout for true randomness
+          // This ensures smooth transitions while maintaining randomness
+          layouts[machine.next] = 
+            machine.next === State.Tensor ? generateTensorLayout(generateRandomTensorRotation()) :
+            machine.next === State.Graph ? generateGraphLayout() :
+            generateNNLayout();
+          
+          // Update bounds for the regenerated layout
+          stateBounds[machine.next] = layouts[machine.next].bounds;
+          
           machine.phase = 'morph';
           machine.t = 0;
           machine.startTime = now;
@@ -473,113 +545,136 @@ export default function SimplifiedNetworkCanvas({ nodeCount = N }: { nodeCount?:
       const targetLayout = layouts[machine.next];
 
       // Calculate current positions (morph or static)
-      const positions: Vec3[] = new Array(N);
-      if (machine.phase === 'pause') {
-        positions.splice(0, N, ...currentLayout.positions);
-      } else {
-        const easedT = easeInOutCubic(machine.t);
+      const isMorphing = machine.phase === 'morph';
+      const easedMorphT = isMorphing ? easeInOutCubic(machine.t) : 0;
+      const positions: Vec3[] = isMorphing ? new Array(N) : currentLayout.positions;
+      if (isMorphing) {
         for (let i = 0; i < N; i++) {
-          positions[i] = lerpVec3(currentLayout.positions[i], targetLayout.positions[i], easedT);
+          positions[i] = lerpVec3(currentLayout.positions[i], targetLayout.positions[i], easedMorphT);
         }
       }
 
-      // Project 3D to 2D with automatic centering and scaling
+      // Project 3D to 2D with dynamic scaling for maximum space usage
       const centerX = width / 2;
       const centerY = height / 2;
-
-      // Use constant scale based on the largest extents across all states
       const modelCenterX = 0;
       const modelCenterY = 0;
-      const modelWidth = Math.max(globalModelWidth, 1e-6);
-      const modelHeight = Math.max(globalModelHeight, 1e-6);
 
       const padding = 60; // pixels of padding from edge
       const availableW = Math.max(width - 2 * padding, 1);
       const availableH = Math.max(height - 2 * padding, 1);
-      const scale = Math.min(availableW / modelWidth, availableH / modelHeight);
 
-      const points2D = positions.map(([x, y]) => ({
-        x: centerX + (x - modelCenterX) * scale,
-        y: centerY + (y - modelCenterY) * scale,
-      }));
+      // Calculate scale factors for current and target states
+      const currentScale = calculateScaleFactor(stateBounds[machine.state], availableW, availableH);
+      const targetScale = calculateScaleFactor(stateBounds[machine.next], availableW, availableH);
 
-      // Draw edges with crossfade
+      // Update Brownian motion for all dots - optimized calculations
+      const brownianStep = CFG.brownian.speed * CFG.brownian.amplitude;
+      const damping = 0.995;
+      
+      for (let i = 0; i < N; i++) {
+        // Optimized random walk with single multiplication per axis
+        brownianOffsetX[i] = brownianOffsetX[i] * damping + (Math.random() - 0.5) * brownianStep;
+        brownianOffsetY[i] = brownianOffsetY[i] * damping + (Math.random() - 0.5) * brownianStep;
+        brownianOffsetZ[i] = brownianOffsetZ[i] * damping + (Math.random() - 0.5) * brownianStep;
+      }
+
+      // Smoothly interpolate scale during morphing
+      const scale = isMorphing ? 
+        lerp(currentScale, targetScale, easedMorphT) : 
+        currentScale;
+
+      // Project 3D to 2D with Brownian motion applied - optimized single loop
+      for (let i = 0; i < N; i++) {
+        const p = positions[i];
+        // Combined projection and jiggle calculation
+        projectedX[i] = centerX + (p[0] + brownianOffsetX[i] - modelCenterX) * scale;
+        projectedY[i] = centerY + (p[1] + brownianOffsetY[i] - modelCenterY) * scale;
+      }
+
+      // Draw edges with crossfade - optimized rendering
       ctx.lineWidth = 1;
       ctx.strokeStyle = lineColor;
+      const baseAlpha = dark ? 0.3 : 0.2;
 
-      if (machine.phase === 'pause') {
-        // Draw current state edges
-        for (let i = 0; i < currentLayout.edges.length; i++) {
-          const [a, b] = currentLayout.edges[i];
-          const brightness = currentLayout.lineBrightness[i];
-          ctx.globalAlpha = brightness * (dark ? 0.3 : 0.2);
-          
-          ctx.beginPath();
-          ctx.moveTo(points2D[a].x, points2D[a].y);
-          ctx.lineTo(points2D[b].x, points2D[b].y);
-          ctx.stroke();
+      if (!isMorphing) {
+        // Draw current state edges - optimized with early alpha calculation
+        const edges = currentLayout.edges;
+        const brightness = currentLayout.lineBrightness;
+        for (let i = 0; i < edges.length; i++) {
+          const [a, b] = edges[i];
+          const alpha = brightness[i] * baseAlpha;
+          if (alpha > 0.01) { // Skip nearly transparent edges
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();
+            ctx.moveTo(projectedX[a], projectedY[a]);
+            ctx.lineTo(projectedX[b], projectedY[b]);
+            ctx.stroke();
+          }
         }
       } else {
         // Crossfade between current and target edges with eased timing
-        const easedT = easeInOutCubic(machine.t);
+        const easedT = easedMorphT;
         
-        // Slower edge transitions for dramatic changes (graph <-> NN)
+        // Optimized fade calculations
         const isGraphToNN = (machine.state === State.Graph && machine.next === State.NN) ||
                            (machine.state === State.NN && machine.next === State.Graph);
         
-        let edgeFadeOut, edgeFadeIn;
-        if (isGraphToNN) {
-          // Delayed fade-in for incoming edges to reduce visual noise
-          edgeFadeOut = Math.max(0, 1 - easedT * 1.5); // Fade out faster
-          edgeFadeIn = Math.max(0, (easedT - 0.3) / 0.7); // Fade in later
-        } else {
-          edgeFadeOut = 1 - easedT;
-          edgeFadeIn = easedT;
+        const edgeFadeOut = isGraphToNN ? Math.max(0, 1 - easedT * 1.5) : 1 - easedT;
+        const edgeFadeIn = isGraphToNN ? Math.max(0, (easedT - 0.3) / 0.7) : easedT;
+
+        // Draw outgoing edges (fading out) - batched
+        if (edgeFadeOut > 0) {
+          const edges = currentLayout.edges;
+          const brightness = currentLayout.lineBrightness;
+          for (let i = 0; i < edges.length; i++) {
+            const [a, b] = edges[i];
+            const alpha = brightness[i] * edgeFadeOut * baseAlpha;
+            if (alpha > 0.01) { // Skip nearly transparent edges
+              ctx.globalAlpha = alpha;
+              ctx.beginPath();
+              ctx.moveTo(projectedX[a], projectedY[a]);
+              ctx.lineTo(projectedX[b], projectedY[b]);
+              ctx.stroke();
+            }
+          }
         }
 
-        // Draw outgoing edges (fading out)
-        for (let i = 0; i < currentLayout.edges.length; i++) {
-          const [a, b] = currentLayout.edges[i];
-          const brightness = currentLayout.lineBrightness[i];
-          ctx.globalAlpha = brightness * edgeFadeOut * (dark ? 0.3 : 0.2);
-          
-          ctx.beginPath();
-          ctx.moveTo(points2D[a].x, points2D[a].y);
-          ctx.lineTo(points2D[b].x, points2D[b].y);
-          ctx.stroke();
-        }
-
-        // Draw incoming edges (fading in)
-        for (let i = 0; i < targetLayout.edges.length; i++) {
-          const [a, b] = targetLayout.edges[i];
-          const brightness = targetLayout.lineBrightness[i];
-          ctx.globalAlpha = brightness * edgeFadeIn * (dark ? 0.3 : 0.2);
-          
-          ctx.beginPath();
-          ctx.moveTo(points2D[a].x, points2D[a].y);
-          ctx.lineTo(points2D[b].x, points2D[b].y);
-          ctx.stroke();
+        // Draw incoming edges (fading in) - batched
+        if (edgeFadeIn > 0) {
+          const edges = targetLayout.edges;
+          const brightness = targetLayout.lineBrightness;
+          for (let i = 0; i < edges.length; i++) {
+            const [a, b] = edges[i];
+            const alpha = brightness[i] * edgeFadeIn * baseAlpha;
+            if (alpha > 0.01) { // Skip nearly transparent edges
+              ctx.globalAlpha = alpha;
+              ctx.beginPath();
+              ctx.moveTo(projectedX[a], projectedY[a]);
+              ctx.lineTo(projectedX[b], projectedY[b]);
+              ctx.stroke();
+            }
+          }
         }
       }
 
       // Draw nodes
       ctx.fillStyle = nodeColor;
       
-      for (let i = 0; i < points2D.length; i++) {
-        const point = points2D[i];
+      for (let i = 0; i < N; i++) {
         
         // Apply transparency for center nodes in tensor state
         if (machine.state === State.Tensor || 
            (machine.phase === 'morph' && machine.state === State.NN && machine.next === State.Tensor) ||
            (machine.phase === 'morph' && machine.state === State.Graph && machine.next === State.Tensor)) {
           const pos = positions[i];
+          // Use base position (without jiggle) for transparency calculation to maintain structure
           const distFromCenter = Math.sqrt(pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2]);
           const transparencyFactor = distFromCenter < 0.3 ? 0.9 : 1.0;
           
           // During morph, blend the transparency
-          if (machine.phase === 'morph') {
-            const easedT = easeInOutCubic(machine.t);
-            const morphFactor = machine.next === State.Tensor ? easedT : (1 - easedT);
+          if (isMorphing) {
+            const morphFactor = machine.next === State.Tensor ? easedMorphT : (1 - easedMorphT);
             ctx.globalAlpha = 1.0 - morphFactor * (1.0 - transparencyFactor);
           } else {
             ctx.globalAlpha = transparencyFactor;
@@ -589,17 +684,18 @@ export default function SimplifiedNetworkCanvas({ nodeCount = N }: { nodeCount?:
         }
         
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 1.5, 0, Math.PI * 2);
+        ctx.arc(projectedX[i], projectedY[i], 1.5, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      requestAnimationFrame(draw);
+      rafId = requestAnimationFrame(draw);
     };
 
-    requestAnimationFrame(draw);
+    rafId = requestAnimationFrame(draw);
 
     return () => {
       destroyed = true;
+      cancelAnimationFrame(rafId);
       ro.disconnect();
       roParent?.disconnect();
       window.removeEventListener('resize', onWinResize);
