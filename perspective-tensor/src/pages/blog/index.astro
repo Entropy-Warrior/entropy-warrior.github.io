@@ -1,15 +1,98 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import StructuredData from '../../components/StructuredData.astro';
 import { getCollection } from 'astro:content';
+
 const posts = await getCollection('blog', ({ data }) => data.draft !== true);
+
+// Sort posts by date (newest first)
+posts.sort((a, b) => {
+  const dateA = a.data.pubDate || new Date(0);
+  const dateB = b.data.pubDate || new Date(0);
+  return dateB.getTime() - dateA.getTime();
+});
+
+const blogData = {
+  "@type": "Blog",
+  name: "Perspective Tensor Blog",
+  description: "Thoughts on AI, machine learning, complexity theory, and data science",
+  url: "https://perspective-tensor.dev/blog",
+  author: {
+    "@type": "Person",
+    name: "Lin Wang",
+    url: "https://perspective-tensor.dev"
+  },
+  blogPosts: posts.map(post => ({
+    "@type": "BlogPosting",
+    headline: post.data.title || post.id,
+    description: post.data.description || '',
+    datePublished: post.data.pubDate?.toISOString(),
+    author: {
+      "@type": "Person",
+      name: post.data.author || "Lin Wang"
+    },
+    url: `https://perspective-tensor.dev/blog/${post.id}`
+  }))
+};
 ---
-<BaseLayout title="Blog">
-  <h1 class="text-2xl font-bold mb-6">Blog</h1>
-  <ul class="space-y-3">
+<BaseLayout 
+  title="Blog" 
+  description="Thoughts on AI, machine learning, complexity theory, and data science through a first principles lens."
+>
+  <StructuredData type="Blog" data={blogData} />
+  
+  <div class="mb-8">
+    <h1 class="text-3xl md:text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">Blog</h1>
+    <p class="text-lg text-gray-600 dark:text-gray-300">
+      Thoughts on AI, machine learning, complexity theory, and data science through a first principles lens.
+    </p>
+  </div>
+  
+  <div class="space-y-8">
     {posts.map(post => (
-      <li>
-        <a class="text-blue-600 hover:underline" href={`/blog/${post.id}`}>{post.data.title ?? post.id}</a>
-      </li>
+      <article class="group">
+        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all duration-200">
+          <h2 class="text-xl md:text-2xl font-semibold mb-3">
+            <a 
+              class="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" 
+              href={`/blog/${post.id}`} 
+              data-astro-history="push"
+            >
+              {post.data.title ?? post.id}
+            </a>
+          </h2>
+          
+          {post.data.pubDate && (
+            <time 
+              class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 block" 
+              datetime={post.data.pubDate.toISOString()}
+            >
+              {post.data.pubDate.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </time>
+          )}
+          
+          {post.data.description && (
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+              {post.data.description}
+            </p>
+          )}
+          
+          <a 
+            href={`/blog/${post.id}`} 
+            class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm transition-colors"
+            data-astro-history="push"
+          >
+            Read more
+            <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+      </article>
     ))}
-  </ul>
+  </div>
 </BaseLayout>

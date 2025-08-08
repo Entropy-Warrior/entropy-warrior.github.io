@@ -1,8 +1,37 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import StructuredData from '../components/StructuredData.astro';
+import TensorMorph from '../react/TensorMorph.tsx';
+
+const websiteData = {
+  name: "Perspective Tensor",
+  description: "Personal blog exploring AI, machine learning, complexity theory, and data science through a first principles lens.",
+  url: "https://perspective-tensor.dev",
+  author: {
+    "@type": "Person",
+    name: "Lin Wang",
+    url: "https://perspective-tensor.dev"
+  },
+  potentialAction: {
+    "@type": "SearchAction",
+    target: "https://perspective-tensor.dev/search?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+};
 ---
 <BaseLayout title="Home">
-  <h1 class="text-3xl font-bold mb-4">Perspective Tensor</h1>
-  <p class="mb-6">Welcome. Explore my writings and projects.</p>
-  <a class="text-blue-600 hover:underline" href="/blog">Go to Blog →</a>
+  <StructuredData type="WebSite" data={websiteData} />
+  <div class="py-20 md:py-28 text-center">
+    <section class="mb-12" transition:name="hero" transition:animate="fade">
+      <TensorMorph client:idle />
+    </section>
+    <div class="max-w-3xl mx-auto px-4">
+      <h1 class="text-5xl md:text-6xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+        Perspective Tensor
+      </h1>
+      <p class="mt-6 text-xl text-gray-600 dark:text-gray-300 leading-relaxed">
+        Exploring AI, machine learning, complexity theory, and data science through a first principles lens.
+      </p>
+    </div>
+  </div>
 </BaseLayout>

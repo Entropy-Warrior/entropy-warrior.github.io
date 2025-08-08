@@ -1,1 +1,114 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Typography Dark Mode Styles */
+:root {
+  /* Light mode typography colors */
+  --prose-body: #374151;
+  --prose-headings: #111827;
+  --prose-links: #2563eb;
+  --prose-bold: #111827;
+  --prose-quotes: #4b5563;
+  --prose-quote-borders: #d1d5db;
+  --prose-code: #111827;
+  --prose-code-bg: #f3f4f6;
+  --prose-pre-bg: #f9fafb;
+  --prose-pre-code: #1f2937;
+  --prose-hr: #d1d5db;
+}
+
+.dark {
+  /* Dark mode typography colors */
+  --prose-body: #d1d5db;
+  --prose-headings: #f9fafb;
+  --prose-links: #60a5fa;
+  --prose-bold: #f9fafb;
+  --prose-quotes: #9ca3af;
+  --prose-quote-borders: #4b5563;
+  --prose-code: #f9fafb;
+  --prose-code-bg: #1f2937;
+  --prose-pre-bg: #111827;
+  --prose-pre-code: #e5e7eb;
+  --prose-hr: #4b5563;
+}
+
+/* Base styles */
+:root {
+  color-scheme: light dark;
+}
+
+html, body {
+  min-height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Accessibility improvements */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.focus\:not-sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Enhanced focus states */
+:focus-visible {
+  outline: 2px solid theme('colors.blue.500');
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Link styles */
+a {
+  transition: all 150ms ease-in-out;
+}
+
+/* Button focus states */
+button:focus-visible {
+  outline: 2px solid theme('colors.blue.500');
+  outline-offset: 2px;
+}
+
+/* Code block improvements */
+pre code {
+  background: none !important;
+  padding: 0 !important;
+}
+
+/* Image optimizations */
+img {
+  height: auto;
+  max-width: 100%;
+}
+
+/* Print styles */
+@media print {
+  .dark {
+    --tw-prose-body: theme('colors.gray.700');
+    --tw-prose-headings: theme('colors.gray.900');
+    --tw-prose-links: theme('colors.blue.600');
+    --tw-prose-code: theme('colors.gray.900');
+  }
+}

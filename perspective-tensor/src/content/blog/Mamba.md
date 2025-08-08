@@ -1,8 +1,11 @@
 ---
 title: "State Space Models vs Transformers: A Nuanced Perspective on Sequence Modeling"
+description: "Comparing the strengths and limitations of State Space Models and Transformers in sequence modeling tasks"
+pubDate: 2024-02-15
 draft: false
+author: "Lin Wang"
 ---
-![mamba](/images/SSM.png)
+![Diagram illustrating State Space Model architecture and data flow](/images/SSM.png)
 
 Have you ever wondered how AI models make sense of sequential data like text, time series, or medical images as time series? Beside the "traditional" recurrent neural network, two powerful machine learning architectures recently emerged as frontrunners in this field: transformers and State Space Models (SSM). But what sets them apart, and how do they compare? Let's delve into sequence modeling and examine the nuanced differences between these two "newcomers".
 

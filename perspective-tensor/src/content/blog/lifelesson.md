@@ -1,10 +1,12 @@
 ---
 title: "Life Lessons from Machine Learning"
-author: "Lin Wang"
 description: "Machines learn from us, we learn from their learnings."
+pubDate: 2024-03-10
+draft: false
+author: "Lin Wang"
 ---
 
-![alt text](/images/lifelesson.png)
+![Illustration connecting machine learning concepts to life lessons with interconnected nodes and pathways](/images/lifelesson.png)
 
 Lately, while diving into the latest and newest techniques in the world of AI, I couldn't help but notice a few concepts that bear striking similarities to life lessons we learn as humans.
 

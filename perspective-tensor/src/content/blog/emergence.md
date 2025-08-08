@@ -1,9 +1,12 @@
 ---
 title: "From Bird Flocks to Intelligence: The Power of Emergence"
+description: "Understanding how complex behaviors emerge from simple rules in nature and AI systems"
+pubDate: 2024-04-20
 draft: false
+author: "Lin Wang"
 ---
 
-![bird flock](/images/emergence.png)
+![Time-lapse photography showing the emergent patterns of bird flock movement](/images/emergence.png)
 _(An image from Xavi Bou's project Ornitographies.)_
 
 Have you ever found bird flocks mesmerizing? I certainly do. But did you know that it's not the birds that memorize, but the flock itself? This behavior arises from simple rules and interactions. It's fascinating how a system with simple components and rules can create something incredibly complex and sophisticated. I find this theme absolutely captivating and wanted to share it with you.

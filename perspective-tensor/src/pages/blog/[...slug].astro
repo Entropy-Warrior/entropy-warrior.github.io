@@ -1,0 +1,98 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import StructuredData from '../../components/StructuredData.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post }
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+// Extract first image from content for og:image if available
+const contentText = post.body || '';
+const imageMatch = contentText.match(/!\[.*?\]\(([^)]+)\)/);
+const postImage = imageMatch ? imageMatch[1] : undefined;
+
+// Structured data for blog post
+const blogPostData = {
+  headline: post.data.title || post.id,
+  description: post.data.description || '',
+  author: {
+    "@type": "Person",
+    name: post.data.author || "Lin Wang",
+    url: "https://perspective-tensor.dev"
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "Perspective Tensor",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://perspective-tensor.dev/favicon.svg"
+    }
+  },
+  datePublished: post.data.pubDate?.toISOString(),
+  dateModified: post.data.pubDate?.toISOString(),
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": new URL(`/blog/${post.id}`, Astro.site || 'https://perspective-tensor.dev')
+  },
+  image: postImage ? new URL(postImage, Astro.site || 'https://perspective-tensor.dev') : undefined
+};
+---
+
+<BaseLayout 
+  title={post.data.title || post.id}
+  description={post.data.description}
+  image={postImage}
+  article={true}
+  publishedTime={post.data.pubDate?.toISOString()}
+  author={post.data.author}
+>
+  <StructuredData type="BlogPosting" data={blogPostData} />
+  
+  <!-- Breadcrumb Navigation -->
+  <nav class="mb-8" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+      <li>
+        <a href="/" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Home</a>
+      </li>
+      <li class="flex items-center">
+        <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path>
+        </svg>
+        <a href="/blog" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Blog</a>
+      </li>
+      <li class="flex items-center">
+        <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path>
+        </svg>
+        <span class="text-gray-700 dark:text-gray-300">{post.data.title || post.id}</span>
+      </li>
+    </ol>
+  </nav>
+  
+  <article class="prose lg:prose-xl mx-auto dark:prose-invert">
+    <header class="mb-8 not-prose">
+      <h1 class="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">{post.data.title || post.id}</h1>
+      {post.data.pubDate && (
+        <time class="text-gray-600 dark:text-gray-400 block mb-4" datetime={post.data.pubDate.toISOString()}>
+          {post.data.pubDate.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}
+        </time>
+      )}
+      {post.data.description && (
+        <p class="text-xl text-gray-700 dark:text-gray-300 leading-relaxed">{post.data.description}</p>
+      )}
+    </header>
+    <Content />
+  </article>
+</BaseLayout>

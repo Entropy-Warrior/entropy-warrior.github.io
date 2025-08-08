@@ -9,8 +9,9 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
+  site: 'https://perspective-tensor.dev',
   integrations: [react(), mdx()],
-
+  
   vite: {
     plugins: [tailwindcss()]
   }

@@ -1,10 +1,12 @@
 ---
 title: "Complextropy and Complexodynamics - Sutskever Reading List Series (1 of 30)"
-date: 2025-06-29
+description: "Exploring the concept of sophistication and meaningful complexity through the lens of coffee and milk mixing dynamics"
+pubDate: 2024-06-29
 draft: false
+author: "Lin Wang"
 ---
 
-![banner](/images/coffee-mixing-stages.png)
+![Coffee and milk mixing in three stages showing increasing entropy but peak sophistication in the middle stage](/images/coffee-mixing-stages.png)
 
 What exactly is complexity? What is there to model? I've been preoccupied with these ideas recently, especially after exploring Ilya Sutskever's highly recommended top 30 machine learning reading list. This aligns closely with my writing about compression. It's just another way of looking at how to model complex yet intelligent systems — a.k.a. creating ML models or "AI," a term that's overused these days.
 
@@ -22,7 +24,7 @@ But if you take another look at them and try answering this question: "How do yo
 
 This effort required to describe these states is "complextropy." I like the other definition the blogger used: "sophistication." If you think about how complextropy evolves through a time series of coffee and milk mixing, you'll observe the following pattern:
 
-![Complextropy evolution graph](/images/complextropy-evolution.png)
+![Graph showing complextropy evolution over time - entropy always increases while sophistication peaks in the middle](/images/complextropy-evolution.png)
 
 Entropy always increases, but meaningfulness — a.k.a. sophistication, a.k.a. complexity — peaks somewhere along the way.
 

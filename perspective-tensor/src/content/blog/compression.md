@@ -1,7 +1,11 @@
-+++
-title = 'Modeling and Compression'
-+++
-![banner](/images/blackhole.png)
+---
+title: "Modeling and Compression"
+description: "Exploring how data science models are essentially sophisticated forms of compression"
+pubDate: 2024-05-15
+draft: false
+author: "Lin Wang"
+---
+![Abstract representation of data compression with swirling patterns resembling a black hole](/images/blackhole.png)
 
 ## Think Your Model is Smart? It's Actually Just Really Good at Compression
 

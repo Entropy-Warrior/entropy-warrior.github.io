@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://perspective-tensor.dev/sitemap-index.xml
+Sitemap: https://perspective-tensor.dev/sitemap-0.xml
+
+# Optimize crawl delay
+Crawl-delay: 1
+
+# Allow specific search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
