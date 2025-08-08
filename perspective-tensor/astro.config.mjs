@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://perspective-tensor.dev',
+  site: 'https://entropy-warrior.github.io',
   integrations: [react(), mdx()],
   
   vite: {
