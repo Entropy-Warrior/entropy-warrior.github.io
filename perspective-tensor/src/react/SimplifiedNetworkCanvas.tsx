@@ -196,10 +196,9 @@ function generateGraphLayout(): Layout {
   }
   const hubIndices = allIndices.slice(0, hubs);
   
-  // Position hub centers randomly in 3D space ensuring minimum inter-hub distance
-  const maxPosX = 1.4 - hubRadius; // Leave room for cluster radius in X
-  const maxPosY = 1.4 - hubRadius; // Leave room for cluster radius in Y  
-  const maxPosZ = 1.4 - hubRadius; // Leave room for cluster radius in Z
+  // Position hub centers in 2D (X,Z plane) with controlled Y spread
+  const maxPosXZ = 1.4 - hubRadius; // Leave room for cluster radius in X and Z
+  const maxPosY = 0.8; // Controlled Y range for height distribution
   const hubPositions: Vec3[] = [];
   for (let i = 0; i < hubs; i++) {
     let chosen: Vec3 | null = null;
@@ -208,9 +207,9 @@ function generateGraphLayout(): Layout {
     const attempts = 600;
     for (let a = 0; a < attempts; a++) {
       const candidate: Vec3 = [
-        Math.random() * (2 * maxPosX) - maxPosX,
-        Math.random() * (2 * maxPosY * heightScale) - maxPosY * heightScale,
-        Math.random() * (2 * maxPosZ) - maxPosZ,
+        Math.random() * (2 * maxPosXZ) - maxPosXZ,
+        (Math.random() * 2 - 1) * maxPosY * heightScale, // Controlled Y with heightScale
+        Math.random() * (2 * maxPosXZ) - maxPosXZ,
       ];
       let minDistToExisting = Infinity;
       for (let j = 0; j < hubPositions.length; j++) {

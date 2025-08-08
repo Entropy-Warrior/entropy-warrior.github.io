@@ -43,6 +43,11 @@ html, body {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+/* Reserve space for scrollbars to prevent horizontal layout shift when content height changes */
+html {
+  scrollbar-gutter: stable both-edges;
+}
+
 /* Distinctive font for headers and footer */
 .font-display {
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
