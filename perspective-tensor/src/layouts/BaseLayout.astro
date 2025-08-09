@@ -15,7 +15,7 @@ interface Props {
 
 const { 
   title, 
-  description = "Personal blog exploring AI, machine learning, complexity theory, and data science through a first principles lens.", 
+  description = "Exploring the intersection of AI/ML systems, human complexity, and career growth. Join me in discovering patterns that connect technology, people, and purpose.", 
   image = "/images/og-default.png",
   article = false,
   publishedTime,
@@ -25,7 +25,7 @@ const {
 const canonicalURL = new URL(Astro.url.pathname, Astro.site || 'https://perspective-tensor.dev');
 const siteTitle = "Perspective Tensor";
 ---
-<html lang="en" class="min-h-full">
+<html lang="en" class="min-h-full bg-white dark:bg-gray-900">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -73,13 +73,13 @@ const siteTitle = "Perspective Tensor";
       Skip to main content
     </a>
     
-    <header class="w-full border-b border-gray-100 dark:border-gray-900">
-      <div class="mx-auto max-w-7xl px-4 py-2 flex items-center justify-between">
-        <a href="/" class="font-display text-base hover:text-gray-600 dark:hover:text-gray-400" data-astro-history="push">
+    <header class="w-full">
+      <div class="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
+        <a href="/" class="text-lg font-light text-gray-900 hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-400 transition-colors" data-astro-history="push">
           Perspective Tensor
         </a>
         <nav class="flex items-center space-x-4">
-          <a href="/blog" class="text-base font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 transition-colors" data-astro-history="push">
+          <a href="/blog" class="text-base font-light text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 transition-colors" data-astro-history="push">
             Blog
           </a>
           <ThemeToggle />

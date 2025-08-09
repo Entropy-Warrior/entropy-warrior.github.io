@@ -1,6 +1,6 @@
 ---
 interface Props {
-  type: 'WebSite' | 'BlogPosting' | 'Person' | 'Organization';
+  type: 'WebSite' | 'BlogPosting' | 'Blog' | 'Person' | 'Organization';
   data: Record<string, any>;
 }
 
@@ -13,4 +13,4 @@ const structuredData = {
 };
 ---
 
-<script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+<script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />

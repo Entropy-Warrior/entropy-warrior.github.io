@@ -62,6 +62,9 @@ function isDark(): boolean {
 
 export function getRenderColors(): RenderColors {
   const dark = isDark();
+  
+  // Just use the hardcoded colors that we know work
+  // These correspond to Tailwind's gray colors
   return {
     nodeColor: dark ? 'rgba(226, 232, 240, 0.6)' : 'rgba(30, 41, 59, 0.5)',
     lineColor: dark ? 'rgb(203, 213, 225)' : 'rgb(30, 41, 59)',

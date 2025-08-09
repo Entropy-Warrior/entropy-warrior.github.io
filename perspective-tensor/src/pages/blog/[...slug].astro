@@ -1,6 +1,8 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import StructuredData from '../../components/StructuredData.astro';
+import ReferencePopup from '../../components/ReferencePopup.astro';
+import LinkTooltip from '../../components/LinkTooltip.astro';
 import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -55,44 +57,199 @@ const blogPostData = {
   author={post.data.author}
 >
   <StructuredData type="BlogPosting" data={blogPostData} />
+  <ReferencePopup />
+  <LinkTooltip />
   
-  <!-- Breadcrumb Navigation -->
-  <nav class="mb-8" aria-label="Breadcrumb">
-    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-      <li>
-        <a href="/" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Home</a>
-      </li>
-      <li class="flex items-center">
-        <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path>
-        </svg>
-        <a href="/blog" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Blog</a>
-      </li>
-      <li class="flex items-center">
-        <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path>
-        </svg>
-        <span class="text-gray-700 dark:text-gray-300">{post.data.title || post.id}</span>
-      </li>
-    </ol>
-  </nav>
+  <div class="max-w-3xl mx-auto px-4">
+    <!-- Minimal navigation -->
+    <nav class="mb-12" aria-label="Breadcrumb">
+      <div class="flex items-center justify-between">
+        <a 
+          href="/blog"
+          class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-300 group"
+          data-astro-history="push"
+        >
+          <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span class="font-light">Back to blog</span>
+        </a>
+        
+        {post.data.pubDate && (
+          <time 
+            class="text-xs text-gray-500 dark:text-gray-400 font-light" 
+            datetime={post.data.pubDate.toISOString()}
+          >
+            {post.data.pubDate.toLocaleDateString('en-US', { 
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })}
+          </time>
+        )}
+      </div>
+    </nav>
+    
+    <article>
+      <!-- Elegant header -->
+      <header class="mb-12 text-center">
+        <h1 class="text-2xl md:text-3xl font-light text-gray-900 dark:text-gray-100 mb-4 leading-relaxed">
+          {post.data.title || post.id}
+        </h1>
+        {post.data.description && (
+          <p class="text-base text-gray-600 dark:text-gray-400 font-light max-w-2xl mx-auto leading-relaxed">
+            {post.data.description}
+          </p>
+        )}
+      </header>
+      
+      <!-- Content with refined typography -->
+      <div class="
+        prose prose-gray dark:prose-invert 
+        prose-headings:font-light 
+        prose-headings:text-gray-900 dark:prose-headings:text-gray-100
+        prose-h1:text-2xl prose-h1:mb-6 prose-h1:mt-10
+        prose-h2:text-xl prose-h2:mb-4 prose-h2:mt-8 
+        prose-h3:text-lg prose-h3:mb-3 prose-h3:mt-6
+        prose-p:text-gray-700 dark:prose-p:text-gray-300
+        prose-p:font-light prose-p:leading-relaxed prose-p:mb-4
+        prose-li:text-gray-700 dark:prose-li:text-gray-300
+        prose-li:font-light prose-li:leading-relaxed
+        prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+        prose-strong:font-medium prose-strong:text-gray-900 dark:prose-strong:text-gray-100
+        prose-code:text-sm prose-code:bg-gray-100 dark:prose-code:bg-gray-800 
+        prose-code:text-gray-900 dark:prose-code:text-gray-100
+        prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+        prose-pre:bg-gray-50 dark:prose-pre:bg-gray-900 
+        prose-pre:border prose-pre:border-gray-200 dark:prose-pre:border-gray-700
+        prose-blockquote:font-light prose-blockquote:border-l-2 
+        prose-blockquote:border-gray-300 dark:prose-blockquote:border-gray-600
+        prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400
+        prose-img:rounded-lg prose-img:shadow-sm prose-img:max-w-md prose-img:mx-auto
+        max-w-none
+      " id="article-content">
+        <Content />
+      </div>
+      
+      <!-- Bottom navigation -->
+      <div class="mt-16">
+        <a 
+          href="/blog"
+          class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-300 group font-light"
+          data-astro-history="push"
+        >
+          <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span>View all posts</span>
+        </a>
+      </div>
+    </article>
+  </div>
   
-  <article class="prose lg:prose-xl mx-auto dark:prose-invert">
-    <header class="mb-8 not-prose">
-      <h1 class="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">{post.data.title || post.id}</h1>
-      {post.data.pubDate && (
-        <time class="text-gray-600 dark:text-gray-400 block mb-4" datetime={post.data.pubDate.toISOString()}>
-          {post.data.pubDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}
-        </time>
-      )}
-      {post.data.description && (
-        <p class="text-xl text-gray-700 dark:text-gray-300 leading-relaxed">{post.data.description}</p>
-      )}
-    </header>
-    <Content />
-  </article>
+  <style is:global>
+    @reference "../../styles/global.css";
+    
+    /* Image size constraints - keeping for compatibility with existing content */
+    #article-content img {
+      margin-left: auto;
+      margin-right: auto;
+      max-width: 28rem;
+    }
+    
+    #article-content img.small {
+      max-width: 16rem;
+    }
+    
+    #article-content img.large {
+      max-width: 100%;
+    }
+    
+    /* Reference and footnote styling */
+    #article-content sup a,
+    #article-content a[href^="#ref-"],
+    #article-content .reference-link {
+      margin-left: 0.125rem;
+    }
+    
+    /* Style reference section header */
+    #article-content h2:last-of-type {
+      font-size: 1rem !important;
+      margin-top: 1.5rem !important;
+      margin-bottom: 0.5rem !important;
+      color: rgb(107, 114, 128) !important;
+      font-weight: 400 !important;
+    }
+    
+    .dark #article-content h2:last-of-type {
+      color: rgb(156, 163, 175) !important;
+    }
+    
+    /* Style footnote section */
+    #article-content .footnotes,
+    #article-content > ol:last-child {
+      font-size: 0.75rem !important;
+      line-height: 1.25 !important;
+      color: rgb(107, 114, 128) !important;
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+    
+    .dark #article-content .footnotes,
+    .dark #article-content > ol:last-child {
+      color: rgb(156, 163, 175) !important;
+    }
+    
+    /* Style footnote list items */
+    #article-content .footnotes li,
+    #article-content > ol:last-child > li,
+    #article-content li[id^="user-content-fn-"] {
+      margin-top: 0 !important;
+      margin-bottom: 0.125rem !important;
+      padding-left: 0 !important;
+      line-height: 1.25 !important;
+    }
+    
+    /* Force paragraphs inside footnotes to be inline */
+    #article-content .footnotes li p,
+    #article-content > ol:last-child > li p,
+    #article-content li[id^="user-content-fn-"] p {
+      margin: 0 !important;
+      padding: 0 !important;
+      display: inline !important;
+      line-height: 1.25 !important;
+    }
+    
+    /* Override list padding */
+    #article-content .footnotes ol,
+    #article-content > ol:last-child {
+      margin: 0 !important;
+      padding-left: 1.25rem !important;
+    }
+    
+    /* Hide back-reference links */
+    #article-content a[data-footnote-backref],
+    #article-content a[href^="#user-content-fnref-"] {
+      display: none !important;
+    }
+    
+    /* Style links in reference section to look like regular text */
+    #article-content .footnotes a:not([data-footnote-backref]),
+    #article-content > ol:last-child a:not([data-footnote-backref]),
+    #article-content li[id^="user-content-fn-"] a:not([data-footnote-backref]) {
+      color: inherit !important;
+      text-decoration: none !important;
+      pointer-events: auto !important;
+      cursor: pointer !important;
+      transition: none !important;
+    }
+    
+    /* Remove hover effects for reference links */
+    #article-content .footnotes a:not([data-footnote-backref]):hover,
+    #article-content > ol:last-child a:not([data-footnote-backref]):hover,
+    #article-content li[id^="user-content-fn-"] a:not([data-footnote-backref]):hover {
+      color: inherit !important;
+      text-decoration: none !important;
+    }
+  </style>
 </BaseLayout>

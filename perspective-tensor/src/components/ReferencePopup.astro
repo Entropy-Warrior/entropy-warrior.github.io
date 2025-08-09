@@ -1,0 +1,211 @@
+---
+// This component handles reference popups
+---
+
+<style is:global>
+  /* Reference link styling */
+  sup a,
+  a[href^="#ref-"],
+  .reference-link {
+    position: relative;
+    color: rgb(37, 99, 235);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s;
+    margin-left: 0.125rem; /* Add space before superscript */
+  }
+  
+  sup a:hover,
+  a[href^="#ref-"]:hover,
+  .reference-link:hover {
+    color: rgb(29, 78, 216);
+  }
+  
+  /* Popup container */
+  .ref-popup-container {
+    position: relative;
+    display: inline-block;
+  }
+  
+  /* Popup tooltip */
+  .ref-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-0.5rem);
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 1px solid rgb(229, 231, 235);
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    max-width: 400px;
+    min-width: 250px;
+    z-index: 50;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: rgb(55, 65, 81);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+    white-space: normal;
+    text-align: left;
+  }
+  
+  .dark .ref-popup {
+    background: rgb(31, 41, 55);
+    border-color: rgb(55, 65, 81);
+    color: rgb(209, 213, 219);
+  }
+  
+  /* Show popup on hover */
+  .ref-popup-container:hover .ref-popup,
+  sup:hover .ref-popup,
+  a[href^="#ref-"]:hover + .ref-popup,
+  .ref-popup:hover {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(-0.75rem);
+  }
+  
+  /* Arrow pointing down */
+  .ref-popup::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: white;
+  }
+  
+  .dark .ref-popup::after {
+    border-top-color: rgb(31, 41, 55);
+  }
+  
+  /* Links in popup - make them clickable */
+  .ref-popup a {
+    color: rgb(37, 99, 235);
+    text-decoration: underline;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+  }
+  
+  .dark .ref-popup a {
+    color: rgb(96, 165, 250);
+  }
+  
+  /* Make the entire popup content selectable and clickable */
+  .ref-popup {
+    pointer-events: auto !important;
+    user-select: text !important;
+  }
+  
+  /* Adjust position if too close to edge */
+  @media (max-width: 640px) {
+    .ref-popup {
+      left: 0;
+      transform: translateX(0) translateY(-0.5rem);
+    }
+    
+    .ref-popup-container:hover .ref-popup {
+      transform: translateX(0) translateY(-0.75rem);
+    }
+  }
+</style>
+
+<script>
+  function initializeReferencePopups() {
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupPopups);
+    } else {
+      setupPopups();
+    }
+  }
+
+  function setupPopups() {
+    // Find all reference-style links
+    const refLinks = document.querySelectorAll('sup a, a[href^="#ref-"], a[href^="#user-content-fn-"]');
+    
+    refLinks.forEach(link => {
+      // Skip if already processed
+      if (link.querySelector('.ref-popup')) return;
+      
+      const href = link.getAttribute('href');
+      if (!href) return;
+      
+      // Get the reference ID
+      const refId = href.replace('#', '').replace('user-content-', '');
+      
+      // Try to find the reference content
+      let refElement = document.getElementById(refId);
+      if (!refElement && refId.startsWith('fn-')) {
+        // Try with user-content prefix (GitHub-style footnotes)
+        refElement = document.getElementById('user-content-' + refId);
+      }
+      
+      if (refElement) {
+        // Create popup
+        const popup = document.createElement('div');
+        popup.className = 'ref-popup';
+        
+        // Extract content from reference
+        const refContent = refElement.cloneNode(true) as HTMLElement;
+        
+        // Remove back-reference links
+        const backLinks = refContent.querySelectorAll('a[href^="#fnref"], a[href^="#user-content-fnref"]');
+        backLinks.forEach(backLink => backLink.remove());
+        
+        // Remove footnote number if present (typically at the start)
+        if (refContent.firstChild && refContent.firstChild.nodeType === Node.TEXT_NODE) {
+          const text = refContent.firstChild.textContent || '';
+          refContent.firstChild.textContent = text.replace(/^\d+\.\s*/, '');
+        }
+        
+        // Keep all links functional in the popup
+        const links = refContent.querySelectorAll('a');
+        links.forEach(link => {
+          // Ensure links are clickable
+          link.style.pointerEvents = 'auto';
+          link.style.cursor = 'pointer';
+          // Open external links in new tab
+          if (link.href && !link.href.startsWith('#')) {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+          }
+        });
+        
+        // Use innerHTML to preserve links and formatting
+        popup.innerHTML = refContent.innerHTML;
+        
+        // Wrap the link
+        const wrapper = document.createElement('span');
+        wrapper.className = 'ref-popup-container';
+        link.parentNode?.insertBefore(wrapper, link);
+        wrapper.appendChild(link);
+        wrapper.appendChild(popup);
+        
+        // Prevent default click behavior and smooth scroll to reference
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (refElement) {
+            refElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Highlight the reference briefly
+            refElement.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            setTimeout(() => {
+              refElement.style.backgroundColor = '';
+            }, 2000);
+          }
+        });
+      }
+    });
+  }
+
+  // Initialize on page load
+  initializeReferencePopups();
+
+  // Re-initialize on page navigation (for Astro transitions)
+  document.addEventListener('astro:page-load', initializeReferencePopups);
+</script>

@@ -1,9 +1,11 @@
 import type { Layout } from '../utils/layoutUtils';
 import {
   generateMathTensorLayout,
-  generateMathHelixLayout,
+  generateMathDiskGalaxyLayout,
   generateMathGraphLayout,
+  generateMathMobiusRibbonLayout,
   generateMathWormholeLayout,
+  generateMathDoubleHelixLayout,
   generateMathTorusKnotLayout,
   generateMathSphericalLayout,
   generateMathHypercubeLayout
@@ -27,11 +29,11 @@ export type LayoutState = typeof LAYOUT_STATES[number];
 // Layout generator mapping for each state
 export const LAYOUT_GENERATORS: Record<LayoutState, () => Layout> = {
   'Tensor': generateMathTensorLayout,
-  'DiskGalaxy': () => generateMathHelixLayout(0), // Flat disk galaxy
+  'DiskGalaxy': generateMathDiskGalaxyLayout,
   'Graph': generateMathGraphLayout,
-  'MobiusRibbon': () => generateMathHelixLayout(1), // Möbius ribbon
+  'MobiusRibbon': generateMathMobiusRibbonLayout,
   'Wormhole': generateMathWormholeLayout,
-  'DoubleHelix': () => generateMathHelixLayout(2), // DNA double helix
+  'DoubleHelix': generateMathDoubleHelixLayout,
   'TorusKnot': generateMathTorusKnotLayout,
   'Spherical': generateMathSphericalLayout,
   'Hypercube': generateMathHypercubeLayout

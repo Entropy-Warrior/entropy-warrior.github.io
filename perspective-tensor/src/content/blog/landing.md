@@ -1,5 +1,5 @@
 ---
-title: "👋 Welcome to Lin's blog!"
+title: "Welcome to Lin's blog"
 description: "Personal blog about lifelong learning and shifting perspectives in data science and AI"
 pubDate: 2024-01-01
 draft: false

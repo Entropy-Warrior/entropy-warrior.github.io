@@ -52,7 +52,7 @@ export function centerPositionsAndGetBounds(
 // Edge generation utilities
 export function connectGridNeighbors(
   grid: number,
-  positions: Vec3[]
+  _positions: Vec3[]
 ): Edge[] {
   const edges: Edge[] = [];
   const gridSq = grid * grid;

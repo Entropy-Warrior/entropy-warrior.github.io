@@ -1,7 +1,7 @@
 ---
 title: "Complextropy and Complexodynamics - Sutskever Reading List Series"
 description: "Exploring the concept of sophistication and meaningful complexity through the lens of coffee and milk mixing dynamics"
-pubDate: 2024-06-29
+pubDate: 2025-06-28
 draft: false
 author: "Lin Wang"
 ---
@@ -16,7 +16,7 @@ Anyway, let's start with a very "simple" concept — entropy. You might have not
 
 I have to say, it's quite a good definition — albeit a bit too wordy for my taste. For me, in the simplest terms, entropy is "randomness." Anti-entropy is "order." A slight digression here: my handle's meaning should be obvious — I want to seek order and meaning from the randomness that we are all inevitably marching towards.
 
-With that out of the way, let's get back to what I want to discuss today — Complexodynamics. What is it exactly? After reading [Scott Aaronson's blog post](https://scottaaronson.blog/?p=762), which I highly recommend, it describes an intuitive but hard-to-define term: "sophistication," "interestingness," or in this tongue-in-cheek blog, "complexodynamics." A picture is worth a thousand words — let's take a look at the banner image above.
+With that out of the way, let's get back to what I want to discuss today — Complexodynamics. What is it exactly? After reading Scott Aaronson's blog post[^1], which I highly recommend, it describes an intuitive but hard-to-define term: "sophistication," "interestingness," or in this tongue-in-cheek blog, "complexodynamics." A picture is worth a thousand words — let's take a look at the banner image above.
 
 From left to right, entropy increases constantly: first, milk and coffee are orderly separated, then they start mixing, creating beautiful and interesting patterns, and finally, they are thoroughly mixed.
 
@@ -45,17 +45,7 @@ This perspective suggests that the most valuable models aren't necessarily those
 As we continue to build more sophisticated AI systems, remembering this principle of complexodynamics might help us focus not just on accuracy or efficiency, but on capturing the meaningful complexity that lies at the heart of intelligent behavior.
 
 ---
-**Reference:**
 
-1. [Aaronson, S. (2011). Why Philosophers Should Care About Computational Complexity. Shtetl-Optimized Blog.](https://scottaaronson.blog/?p=762)
+## References
 
-
-
-
-
-
-
-
-
-
-
+[^1]: Aaronson, S. (2011). [Why Philosophers Should Care About Computational Complexity](https://www.scottaaronson.com/papers/philos.pdf). Shtetl-Optimized Blog.

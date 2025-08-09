@@ -15,7 +15,7 @@ posts.sort((a, b) => {
 
 const websiteData = {
   name: "Perspective Tensor",
-  description: "Personal blog exploring AI, machine learning, complexity theory, and data science through a first principles lens.",
+  description: "Exploring the intersection of AI/ML systems, human complexity, and career growth. Join me in discovering patterns that connect technology, people, and purpose.",
   url: "https://perspective-tensor.dev",
   author: {
     "@type": "Person",
@@ -31,10 +31,49 @@ const websiteData = {
 ---
 <BaseLayout title="Home">
   <StructuredData type="WebSite" data={websiteData} />
-  <div class="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] w-full max-w-3xl mx-auto px-4 gap-6">
+  <div class="relative flex items-center justify-center min-h-[calc(100vh-12rem)] w-full">
     <AnimationCanvas client:load />
-    <p class="text-lg md:text-xl text-gray-700 dark:text-gray-200 leading-relaxed font-light tracking-wide text-center">
-      Finding patterns in chaos, where simple rules create profound complexity.
-    </p>
+    <!-- Invisible border blocks for elegant out-of-bounds fade -->
+    <div class="absolute inset-0 pointer-events-none z-10">
+      <!-- Top edge -->
+      <div class="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
+      <!-- Bottom edge -->
+      <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
+      <!-- Left edge -->
+      <div class="absolute top-0 bottom-0 left-0 w-12 bg-gradient-to-r from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
+      <!-- Right edge -->
+      <div class="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
+      <!-- Corners for smoother transitions -->
+      <div class="absolute top-0 left-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-br-lg"></div>
+      <div class="absolute top-0 right-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-bl-lg"></div>
+      <div class="absolute bottom-0 left-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-tr-lg"></div>
+      <div class="absolute bottom-0 right-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-tl-lg"></div>
+    </div>
+    <div class="absolute inset-0 flex items-end justify-center pointer-events-none z-20">
+      <p class="text-base md:text-lg lg:text-xl text-blue-950 dark:text-blue-200 font-light leading-relaxed tracking-wide text-center px-2 py-1 mx-8 md:mx-12 lg:mx-16 mb-12 md:mb-16 lg:mb-20 animate-fade-in-up bg-white/10 dark:bg-gray-900/30 backdrop-blur-sm rounded-lg">
+        I explore the patterns connecting machine intelligence, organizational dynamics, and personal growth — join me in navigating this multidimensional space where technology and humanity converge.
+      </p>
+    </div>
+    <!-- Transparent clickable overlay with highest z-index -->
+    <a href="/blog" class="absolute inset-0 z-30 cursor-pointer" data-astro-history="push" aria-label="Go to blog"></a>
+    <style>
+        @keyframes fadeInUp {
+          0% {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fade-in-up {
+          animation: fadeInUp 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          animation-delay: 0.5s;
+          opacity: 0;
+        }
+      </style>
+    </div>
   </div>
 </BaseLayout>

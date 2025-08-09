@@ -2,9 +2,16 @@
 @plugin "@tailwindcss/typography";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Typography Dark Mode Styles */
+/* Theme Configuration */
+@theme {
+  /* Custom fonts */
+  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+  --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* Typography colors for prose */
 :root {
-  /* Light mode typography colors */
+  /* Light mode */
   --prose-body: #374151;
   --prose-headings: #111827;
   --prose-links: #374151;
@@ -19,7 +26,7 @@
 }
 
 .dark {
-  /* Dark mode typography colors */
+  /* Dark mode */
   --prose-body: #d1d5db;
   --prose-headings: #f9fafb;
   --prose-links: #d1d5db;
@@ -33,109 +40,92 @@
   --prose-hr: #4b5563;
 }
 
-/* Base styles */
-:root {
-  color-scheme: light dark;
-}
-
-html, body {
-  min-height: 100%;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-
-/* Reserve space for scrollbars to prevent horizontal layout shift when content height changes */
-html {
-  scrollbar-gutter: stable both-edges;
-}
-
-/* Distinctive font for headers and footer */
-.font-display {
-  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
-}
-
-/* Dynamic footer positioning based on viewport height */
-footer {
-  margin-top: clamp(0.5rem, 1vh, 1rem);
-}
-
-@media (min-height: 800px) {
-  footer {
-    margin-top: clamp(0.75rem, 1.5vh, 1.5rem);
+/* Base layer */
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  
+  html, body {
+    min-height: 100%;
+    font-family: var(--font-body);
+  }
+  
+  /* Reserve scrollbar space */
+  html {
+    scrollbar-gutter: stable both-edges;
   }
 }
 
-@media (min-height: 1000px) {
-  footer {
-    margin-top: clamp(1rem, 2vh, 2rem);
+/* Components layer */
+@layer components {
+  /* Display font utility */
+  .font-display {
+    font-family: var(--font-display);
   }
 }
 
-/* Accessibility improvements */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
+/* Utilities layer */
+@layer utilities {
+  /* Dynamic footer spacing */
+  footer {
+    margin-top: clamp(0.5rem, 1vh, 1rem);
+  }
+  
+  @media (min-height: 800px) {
+    footer {
+      margin-top: clamp(0.75rem, 1.5vh, 1.5rem);
+    }
+  }
+  
+  @media (min-height: 1000px) {
+    footer {
+      margin-top: clamp(1rem, 2vh, 2rem);
+    }
+  }
 }
 
-.focus\:not-sr-only:focus {
-  position: static;
-  width: auto;
-  height: auto;
-  padding: inherit;
-  margin: inherit;
-  overflow: visible;
-  clip: auto;
-  white-space: normal;
+
+/* Focus and transition defaults */
+@layer base {
+  /* Focus states */
+  :focus-visible {
+    @apply outline-2 outline-gray-500 outline-offset-2;
+  }
+  
+  button:focus-visible {
+    @apply outline-2 outline-gray-500 outline-offset-2;
+  }
 }
 
-/* Enhanced focus states */
-:focus-visible {
-  outline: 2px solid theme('colors.gray.500');
-  outline-offset: 2px;
+/* Default transitions */
+@layer base {
+  *:where(:not([class*="transition"])) {
+    transition-property: border-color, text-decoration-color, fill, stroke, opacity;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
 }
 
-/* Smooth transitions - excluding theme colors */
-* {
-  transition-property: border-color, text-decoration-color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-
-/* Link styles - hover only */
-a {
-  transition: opacity 150ms ease-in-out;
-}
-
-/* Button focus states */
-button:focus-visible {
-  outline: 2px solid theme('colors.gray.500');
-  outline-offset: 2px;
-}
-
-/* Code block improvements */
-pre code {
-  background: none !important;
-  padding: 0 !important;
-}
-
-/* Image optimizations */
-img {
-  height: auto;
-  max-width: 100%;
+/* Content optimizations */
+@layer base {
+  /* Code blocks */
+  pre code {
+    @apply bg-transparent p-0;
+  }
+  
+  /* Images */
+  img {
+    @apply h-auto max-w-full;
+  }
 }
 
 /* Print styles */
 @media print {
   .dark {
-    --tw-prose-body: theme('colors.gray.700');
-    --tw-prose-headings: theme('colors.gray.900');
-    --tw-prose-links: theme('colors.gray.600');
-    --tw-prose-code: theme('colors.gray.900');
+    --prose-body: theme('colors.gray.700');
+    --prose-headings: theme('colors.gray.900');
+    --prose-links: theme('colors.gray.600');
+    --prose-code: theme('colors.gray.900');
   }
 }

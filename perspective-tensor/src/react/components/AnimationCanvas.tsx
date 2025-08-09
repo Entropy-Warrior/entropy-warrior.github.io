@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   lerpVec3,
   type Vec3,
@@ -19,7 +19,10 @@ import {
   type Bounds
 } from '../utils';
 import { LAYOUT_STATES, LAYOUT_GENERATORS, type LayoutState } from '../layouts';
+import { LAYOUT_EQUATIONS } from '../layouts/layoutEquations';
 import { ANIMATION_CONFIG as CFG } from '../config';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
 
 // ═══════════════════════════════════════════════════════════════
 // CORE TYPES & CONFIGURATION
@@ -179,6 +182,27 @@ class StreamlinedAnimation {
     const scales = LAYOUT_STATES
       .map(s => calculateOptimalScale(this.stateBounds[s], width, height, CFG.viewport.padding));
     this.unifiedScale = Math.min(...scales);
+  }
+
+  // Public methods to get animation state
+  getCurrentState(): State {
+    return this.machine.state;
+  }
+
+  getNextState(): State {
+    return this.machine.next;
+  }
+
+  getPhase(): 'pause' | 'morph' {
+    return this.machine.phase;
+  }
+
+  getMorphProgress(): number {
+    return this.machine.t;
+  }
+
+  getPauseElapsed(): number {
+    return this.machine.phase === 'pause' ? this.machine.elapsed : 0;
   }
 
   private initializeAllLines(): void {
@@ -490,6 +514,10 @@ class StreamlinedAnimation {
 
 export default function StreamlinedAnimationCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [currentEquation, setCurrentEquation] = useState<string>('');
+  const [equationHtml, setEquationHtml] = useState<string>('');
+  const [equationOpacity, setEquationOpacity] = useState<number>(0);
+  const animationRef = useRef<StreamlinedAnimation | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -504,7 +532,23 @@ export default function StreamlinedAnimationCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, CFG.viewport.maxDevicePixelRatio);
 
     const animation = new StreamlinedAnimation();
+    animationRef.current = animation;
     let rafId = 0;
+
+    // Initialize first equation
+    const initialState = animation.getCurrentState();
+    const initialEquation = LAYOUT_EQUATIONS[initialState];
+    setCurrentEquation(initialEquation);
+    try {
+      const html = katex.renderToString(initialEquation, {
+        throwOnError: false,
+        displayMode: true
+      });
+      setEquationHtml(html);
+    } catch (e) {
+      console.error('KaTeX render error:', e);
+      setEquationHtml(initialEquation);
+    }
 
     const getSizingElement = (): HTMLElement | null => {
       let el: HTMLElement | null = canvas.parentElement as HTMLElement | null;
@@ -535,12 +579,95 @@ export default function StreamlinedAnimationCanvas() {
       
       setupCanvas(canvas, { width, height, dpr, padding: CFG.viewport.padding });
     };
+    
+    // Listen for theme changes
+    const themeObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          // Theme changed, force re-render to update colors
+          if (!destroyed && animation) {
+            animation.render(ctx, width, height);
+          }
+        }
+      }
+    });
+    
+    // Observe changes to the html element's class (where dark mode class is toggled)
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
 
     const animate = (time: number) => {
       if (destroyed) return;
 
       animation.update(time);
       animation.render(ctx, width, height);
+
+      // Update equation display - continuous opacity across entire cycle
+      const state = animation.getCurrentState();
+      const nextState = animation.getNextState();
+      const phase = animation.getPhase();
+      const morphProgress = animation.getMorphProgress(); // 0 to 1 during morph
+      const pauseElapsed = animation.getPauseElapsed();
+      
+      // Total cycle: pause (2s) + morph (6s) = 8s
+      // We want: 
+      // - Fully solid (1.0) at middle of pause
+      // - Fully transparent (0.0) at middle of morph (morphProgress = 0.5)
+      
+      let equationToShow: State;
+      let targetOpacity: number;
+      
+      if (phase === 'pause') {
+        // During pause: fade in to peak at middle, then fade out
+        equationToShow = state;
+        const pauseDuration = CFG.timing.pauseMs; // 2000ms
+        const pauseMiddle = pauseDuration / 2; // 1000ms
+        
+        if (pauseElapsed <= pauseMiddle) {
+          // First half of pause: fade in from previous morph
+          // Start from where morph left off (should be around 0.5-1.0)
+          targetOpacity = 0.5 + (pauseElapsed / pauseMiddle) * 0.5; // 0.5 -> 1.0
+        } else {
+          // Second half of pause: fade out toward morph
+          targetOpacity = 1.0 - ((pauseElapsed - pauseMiddle) / pauseMiddle) * 0.5; // 1.0 -> 0.5
+        }
+      } else {
+        // During morph: fade out to 0 at midpoint, then fade in
+        const midpoint = 0.5;
+        
+        if (morphProgress < midpoint) {
+          // Before midpoint: show current equation, continue fading out
+          equationToShow = state;
+          // Continue fade from where pause left off (0.5) down to 0
+          targetOpacity = 0.5 * (1 - morphProgress / midpoint); // 0.5 -> 0
+        } else {
+          // After midpoint: show next equation, fade in
+          equationToShow = nextState;
+          // Fade in from 0 to prepare for next pause
+          targetOpacity = 0.5 * ((morphProgress - midpoint) / midpoint); // 0 -> 0.5
+        }
+      }
+      
+      // Update equation text only when it changes
+      const equation = LAYOUT_EQUATIONS[equationToShow];
+      if (equation !== currentEquation) {
+        setCurrentEquation(equation);
+        try {
+          const html = katex.renderToString(equation, {
+            throwOnError: false,
+            displayMode: true
+          });
+          setEquationHtml(html);
+        } catch (e) {
+          console.error('KaTeX render error:', e);
+          setEquationHtml(equation);
+        }
+      }
+      
+      // Always update opacity for smooth animation
+      setEquationOpacity(targetOpacity);
 
       rafId = requestAnimationFrame(animate);
     };
@@ -565,14 +692,34 @@ export default function StreamlinedAnimationCanvas() {
       cancelAnimationFrame(rafId);
       ro.disconnect();
       roParent?.disconnect();
+      themeObserver.disconnect();
     };
   }, []);
 
   return (
-    <canvas 
-      ref={canvasRef} 
-      className="block w-full" 
-      aria-hidden="true"
-    />
+    <div className="w-full relative">
+      <canvas 
+        ref={canvasRef} 
+        className="block w-full" 
+        aria-hidden="true"
+      />
+      {/* Equation display centered on canvas with proper z-index */}
+      <div 
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-10"
+        style={{
+          opacity: equationOpacity, // Direct opacity control
+          fontSize: 'clamp(0.625rem, 1.5vw, 0.875rem)', // Even smaller font
+          fontWeight: 300
+        }}
+      >
+        <div 
+          className="text-gray-600 dark:text-gray-400 rounded px-2 py-1"
+          dangerouslySetInnerHTML={{ __html: equationHtml }}
+          style={{
+            letterSpacing: '0.02em'
+          }}
+        />
+      </div>
+    </div>
   );
 }

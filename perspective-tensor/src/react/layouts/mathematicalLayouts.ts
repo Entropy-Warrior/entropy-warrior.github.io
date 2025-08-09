@@ -50,7 +50,7 @@ export const generateMathTensorLayout = (): Layout => {
 // Centers randomly distributed in 3D space for variety
 // ═══════════════════════════════════════════════════════════════
 export const generateMathGraphLayout = (): Layout => {
-  const φ = (1 + Math.sqrt(5)) / 2, C = 7, ε = noise(0.3);
+  const C = 7, ε = noise(0.3);
   
   // Generate all positions with cluster assignment
   const positions: Vec3[] = [];
@@ -71,19 +71,19 @@ export const generateMathGraphLayout = (): Layout => {
       rc * Math.cos(φc)
     ];
     
-    // Generate cluster points in a spherical distribution for true centroid
+    // Generate cluster points in a spherical distribution
     const clusterPoints: Vec3[] = [];
     for (let i = 0; i < size; i++) {
-      // Use Fibonacci sphere for even distribution within cluster
-      const t = i / (size - 1);
-      const inclination = Math.acos(1 - 2 * t);
-      const azimuth = 2 * Math.PI * i * φ;
-      const radius = 3 * (0.5 + 0.5 * Math.random()); // Vary radius for volume
+      // Use spherical distribution with some randomness
+      // Random spherical coordinates for true 3D distribution
+      const theta = Math.random() * 2 * Math.PI; // Random azimuth
+      const phi = Math.acos(2 * Math.random() - 1); // Random inclination for uniform sphere
+      const radius = 3 * Math.random(); // Random radius from 0 to 3
       
       const p: Vec3 = [
-        center[0] + radius * Math.sin(inclination) * Math.cos(azimuth) + ε(),
-        center[1] + radius * Math.cos(inclination) + ε(),
-        center[2] + radius * Math.sin(inclination) * Math.sin(azimuth) + ε()
+        center[0] + radius * Math.sin(phi) * Math.cos(theta) + ε(),
+        center[1] + radius * Math.sin(phi) * Math.sin(theta) + ε(),
+        center[2] + radius * Math.cos(phi) + ε()
       ];
       positions.push(p);
       clusterPoints.push(p);
@@ -121,10 +121,25 @@ export const generateMathGraphLayout = (): Layout => {
     const start = c * n;
     const size = c === C - 1 ? N - start : n;
     
+    // Connect hub to all points in its cluster
     for (let i = 0; i < size; i++) {
       if (start + i !== hub) edges.push([hub, start + i]);
     }
-    edges.push([hub, hubs[(c + 1) % C]]);
+    
+    // Connect to next hub in cycle, but check distance first
+    const nextHub = hubs[(c + 1) % C];
+    const hubPos = positions[hub];
+    const nextHubPos = positions[nextHub];
+    const dist = Math.sqrt(
+      (hubPos[0] - nextHubPos[0]) ** 2 +
+      (hubPos[1] - nextHubPos[1]) ** 2 +
+      (hubPos[2] - nextHubPos[2]) ** 2
+    );
+    
+    // Only connect if hubs are within reasonable distance (not across the entire space)
+    if (dist < 15) { // Reasonable threshold for hub connections
+      edges.push([hub, nextHub]);
+    }
   }
   
   return makeLayout(positions, edges);
@@ -153,6 +168,24 @@ const morphDisk = (ε: () => number): Vec3[] => {
       z + ε()
     ] as Vec3;
   });
+};
+
+const generateDiskEdges = (): [number, number][] => {
+  const edges: [number, number][] = [];
+  
+  // Only connect consecutive points along the spiral
+  // This creates a clean spiral without cross-connections
+  for (let i = 0; i < N - 1; i++) {
+    edges.push([i, i + 1]);
+  }
+  
+  // Optionally add sparse connections for the outer parts only
+  // Skip every few points to reduce density but maintain structure
+  for (let i = N * 0.7; i < N - 3; i += 3) {
+    edges.push([i, i + 3]);
+  }
+  
+  return edges;
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -201,6 +234,32 @@ const morphRibbon = (ε: () => number): Vec3[] => {
   });
 };
 
+const generateRibbonEdges = (): [number, number][] => {
+  const edges: [number, number][] = [];
+  const W = 27;
+  const loops = Math.floor(N / W);
+  
+  for (let i = 0; i < N; i++) {
+    const strip = i % W;
+    const loop = Math.floor(i / W);
+    
+    // Along width (connect strips)
+    if (strip < W - 1) edges.push([i, i + 1]);
+    
+    // Along length (connect loops)
+    if (loop < loops - 1) {
+      edges.push([i, i + W]);
+    } else {
+      // Connect last loop to first loop with twist (Möbius closure)
+      const targetStrip = W - 1 - strip; // Flip across width for twist
+      const targetIdx = targetStrip;
+      if (targetIdx < N) edges.push([i, targetIdx]);
+    }
+  }
+  
+  return edges;
+};
+
 // ═══════════════════════════════════════════════════════════════
 // MORPH HELIX: Classic DNA double helix structure (no bridges)
 // Ψ₃(t,s) = [R·cos(ωt + sπ), R·sin(ωt + sπ), h·t]
@@ -241,64 +300,6 @@ const morphHelix = (ε: () => number): Vec3[] => {
   return positions;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// Edge generation functions for different topologies
-// ═══════════════════════════════════════════════════════════════
-
-// Generate edges for disk topology (spiral galaxy with arms)
-const generateDiskEdges = (): [number, number][] => {
-  const edges: [number, number][] = [];
-  
-  // Main spiral
-  for (let i = 0; i < N - 1; i++) {
-    edges.push([i, i + 1]);
-  }
-  
-  // Add radial connections to create spiral arm structure
-  const armsCount = 3; // Number of spiral arms
-  const pointsPerArm = Math.floor(N / armsCount);
-  
-  for (let arm = 0; arm < armsCount; arm++) {
-    const armStart = arm * pointsPerArm;
-    for (let i = 0; i < pointsPerArm - 20; i += 20) {
-      // Connect points along the arm radius
-      if (armStart + i + 20 < N) {
-        edges.push([armStart + i, armStart + i + 20]);
-      }
-    }
-  }
-  
-  return edges;
-};
-
-// Generate edges for ribbon topology (grid pattern with Möbius closure)
-const generateRibbonEdges = (): [number, number][] => {
-  const edges: [number, number][] = [];
-  const W = 27;
-  const loops = Math.floor(N / W);
-  
-  for (let i = 0; i < N; i++) {
-    const strip = i % W;
-    const loop = Math.floor(i / W);
-    
-    // Along width (connect strips)
-    if (strip < W - 1) edges.push([i, i + 1]);
-    
-    // Along length (connect loops)
-    if (loop < loops - 1) {
-      edges.push([i, i + W]);
-    } else {
-      // Connect last loop to first loop with twist (Möbius closure)
-      const targetStrip = W - 1 - strip; // Flip across width for twist
-      const targetIdx = targetStrip;
-      if (targetIdx < N) edges.push([i, targetIdx]);
-    }
-  }
-  
-  return edges;
-};
-
-// Generate edges for helix topology (two separate continuous strands)
 const generateHelixEdges = (): [number, number][] => {
   const edges: [number, number][] = [];
   const n = Math.floor(N / 2);
@@ -317,18 +318,32 @@ const generateHelixEdges = (): [number, number][] => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MORPH: Select topology based on variant
+// DISK GALAXY: Flat spiral galaxy layout
 // ═══════════════════════════════════════════════════════════════
-export const generateMathHelixLayout = (variant?: number): Layout => {
-  const v = variant ?? Math.floor(Math.random() * 3);
+export const generateMathDiskGalaxyLayout = (): Layout => {
   const ε = noise(0.1);
-  
-  // Generate positions based on variant
-  const positions = v === 0 ? morphDisk(ε) : v === 1 ? morphRibbon(ε) : morphHelix(ε);
-  
-  // Generate edges based on variant
-  const edges = v === 0 ? generateDiskEdges() : v === 1 ? generateRibbonEdges() : generateHelixEdges();
-  
+  const positions = morphDisk(ε);
+  const edges = generateDiskEdges();
+  return makeLayout(positions, edges);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MOBIUS RIBBON: Möbius strip layout
+// ═══════════════════════════════════════════════════════════════
+export const generateMathMobiusRibbonLayout = (): Layout => {
+  const ε = noise(0.1);
+  const positions = morphRibbon(ε);
+  const edges = generateRibbonEdges();
+  return makeLayout(positions, edges);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DOUBLE HELIX: DNA double helix layout
+// ═══════════════════════════════════════════════════════════════
+export const generateMathDoubleHelixLayout = (): Layout => {
+  const ε = noise(0.1);
+  const positions = morphHelix(ε);
+  const edges = generateHelixEdges();
   return makeLayout(positions, edges);
 };
 // ═══════════════════════════════════════════════════════════════
@@ -338,14 +353,38 @@ export const generateMathHelixLayout = (variant?: number): Layout => {
 export const generateMathTorusKnotLayout = (): Layout => {
   const ε = noise(0.1);
   
-  // Random torus knot parameters for variety
-  const p = 2 + Math.floor(Math.random() * 2); // 2 or 3 (wraps around torus axis)
-  const q = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 (wraps through hole)
+  // Choose from interesting torus knot configurations
+  // Ensure p and q are coprime (no common factors) for a true knot
+  const knots = [
+    {p: 2, q: 3},  // Trefoil knot
+    {p: 3, q: 2},  // Trefoil knot (mirror)
+    {p: 2, q: 5},  // Solomon's seal knot
+    {p: 3, q: 4},  // More complex knot
+    {p: 3, q: 5},  // Even more complex
+    {p: 4, q: 5},  // Very intricate pattern
+  ];
+  
+  const config = knots[Math.floor(Math.random() * knots.length)];
+  const p = config.p;
+  const q = config.q;
   const R = 8; // Major radius
   const r = 3; // Minor radius
   
+  // Calculate GCD and LCM for proper closure
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const g = gcd(p, q);
+  const lcm = (p * q) / g;
+  
+  // The knot completes one full cycle when t goes from 0 to 2π
+  // We need lcm/p full rotations in the p direction and lcm/q in the q direction
+  // This means we need to go from 0 to 2π * (lcm/gcd(p,q))
+  const periods = lcm / Math.max(p, q);
+  
+  // Generate points along the ENTIRE knot path
+  // Don't close it artificially - let the math close it naturally
   const positions = Array.from({length: N}, (_, i) => {
-    const t = (i / N) * 2 * Math.PI;
+    // Map points evenly along the complete knot
+    const t = (i / N) * 2 * Math.PI * periods;
     
     // Torus knot parametric equations
     const x = (R + r * Math.cos(q * t)) * Math.cos(p * t);
@@ -357,11 +396,43 @@ export const generateMathTorusKnotLayout = (): Layout => {
   
   // Connect adjacent points along the knot
   const edges: [number, number][] = [];
-  for (let i = 0; i < N - 1; i++) {
-    edges.push([i, i + 1]);
+  
+  // Calculate average edge length to set distance threshold
+  let totalDist = 0;
+  for (let i = 0; i < Math.min(10, N - 1); i++) {
+    const dx = positions[i + 1][0] - positions[i][0];
+    const dy = positions[i + 1][1] - positions[i][1];
+    const dz = positions[i + 1][2] - positions[i][2];
+    totalDist += Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
-  // Close the loop
-  edges.push([N - 1, 0]);
+  const avgDist = totalDist / Math.min(10, N - 1);
+  const maxDist = avgDist * 2; // Allow up to 2x average distance
+  
+  // Connect sequential points only if they're close enough
+  for (let i = 0; i < N - 1; i++) {
+    const dx = positions[i + 1][0] - positions[i][0];
+    const dy = positions[i + 1][1] - positions[i][1];
+    const dz = positions[i + 1][2] - positions[i][2];
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    
+    if (dist < maxDist) {
+      edges.push([i, i + 1]);
+    }
+  }
+  
+  // Check if we should close the loop
+  const first = positions[0];
+  const last = positions[N - 1];
+  const closeDist = Math.sqrt(
+    (first[0] - last[0]) ** 2 + 
+    (first[1] - last[1]) ** 2 + 
+    (first[2] - last[2]) ** 2
+  );
+  
+  // Only close if distance is reasonable (within 2x average)
+  if (closeDist < maxDist) {
+    edges.push([N - 1, 0]);
+  }
   
   return makeLayout(positions, edges);
 };
@@ -381,15 +452,21 @@ export const generateMathSphericalLayout = (): Layout => {
   const R = 10; // Base radius
   
   const positions: Vec3[] = [];
-  const gridSize = Math.ceil(Math.sqrt(N));
+  const gridSize = 27; // 27x27 grid for 729 points
+  const actualRows = Math.ceil(N / gridSize);
   
   for (let i = 0; i < N; i++) {
-    const u = (i % gridSize) / (gridSize - 1);
-    const v = Math.floor(i / gridSize) / (gridSize - 1);
+    const row = Math.floor(i / gridSize);
+    const col = i % gridSize;
     
-    // Spherical coordinates
-    const θ = Math.PI * v; // Polar angle (0 to π)
-    const φ = 2 * Math.PI * u; // Azimuthal angle (0 to 2π)
+    // Use cosine for θ to get even distribution (avoids clustering at poles)
+    // This maps points evenly in terms of surface area
+    const v = row / (actualRows - 1);
+    const u = col / (gridSize - 1);
+    
+    // Even distribution: use arccos for latitude
+    const θ = Math.acos(1 - 2 * v); // Maps evenly from north to south pole
+    const φ = 2 * Math.PI * u; // Longitude wraps around
     
     // Simple spherical harmonic approximation
     const harmonic = Math.sin(l * θ) * Math.cos(m * φ);
@@ -409,12 +486,19 @@ export const generateMathSphericalLayout = (): Layout => {
     const row = Math.floor(i / gridSize);
     const col = i % gridSize;
     
-    // Connect to right neighbor
+    // Connect to right neighbor (wrap around at the end)
     if (col < gridSize - 1) {
       edges.push([i, i + 1]);
+    } else {
+      // Connect last column to first column (wrap around)
+      const wrapIndex = row * gridSize;
+      if (wrapIndex < N) {
+        edges.push([i, wrapIndex]);
+      }
     }
+    
     // Connect to bottom neighbor
-    if (row < gridSize - 1 && i + gridSize < N) {
+    if (row < actualRows - 1 && i + gridSize < N) {
       edges.push([i, i + gridSize]);
     }
   }
@@ -423,18 +507,17 @@ export const generateMathSphericalLayout = (): Layout => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// HYPERCUBE: 4D tesseract projected to 3D space
-// 16 vertices at (±1, ±1, ±1, ±1), 32 edges connecting vertices
-// that differ in exactly one coordinate
-// Perspective projection: P(x,y,z,w) = k·[x,y,z]/(d-w)
+// HYPERCUBE: Classic 4D tesseract projected to 3D space
+// 16 vertices at (±1, ±1, ±1, ±1), 32 edges
+// Deterministic perspective projection for perfect "cube within cube"
 // ═══════════════════════════════════════════════════════════════
 export const generateMathHypercubeLayout = (): Layout => {
-  const ε = noise(0.05);
+  const ε = noise(0.02); // Very small noise for subtle variation
   
   // Generate the 16 vertices of the tesseract at (±1, ±1, ±1, ±1)
-  const tesseractVertices: [number, number, number, number][] = [];
+  const vertices4D: [number, number, number, number][] = [];
   for (let i = 0; i < 16; i++) {
-    tesseractVertices.push([
+    vertices4D.push([
       (i & 1) ? 1 : -1,      // x: bit 0
       (i & 2) ? 1 : -1,      // y: bit 1
       (i & 4) ? 1 : -1,      // z: bit 2
@@ -442,129 +525,123 @@ export const generateMathHypercubeLayout = (): Layout => {
     ]);
   }
   
-  // Apply 4D rotation for visual interest (rotate in xw and yz planes)
-  const angle1 = Math.random() * Math.PI / 4; // Random rotation angle
-  const angle2 = Math.random() * Math.PI / 4;
+  // Deterministic projection: w coordinate determines inner (-1) vs outer (+1) cube
+  // No rotation needed - just use w directly for the perspective effect
+  const outerScale = 6;  // Outer cube size
+  const innerScale = 3;  // Inner cube size (exactly half for perfect centering)
   
-  const rotatedVertices = tesseractVertices.map(([x, y, z, w]) => {
-    // Rotate in xw plane
-    const x1 = x * Math.cos(angle1) - w * Math.sin(angle1);
-    const w1 = x * Math.sin(angle1) + w * Math.cos(angle1);
-    
-    // Rotate in yz plane
-    const y1 = y * Math.cos(angle2) - z * Math.sin(angle2);
-    const z1 = y * Math.sin(angle2) + z * Math.cos(angle2);
-    
-    return [x1, y1, z1, w1] as [number, number, number, number];
-  });
-  
-  // Project 4D vertices to 3D using perspective projection
-  const projectionDistance = 3; // Distance from 4D viewpoint
-  const scale = 6; // Scale factor for visibility
-  
-  const tesseractPositions = rotatedVertices.map(([x, y, z, w]) => {
-    const perspective = projectionDistance - w;
+  const vertices3D = vertices4D.map(([x, y, z, w]) => {
+    // w = +1 gives outer cube (larger)
+    // w = -1 gives inner cube (smaller, centered)
+    const cubeScale = w > 0 ? outerScale : innerScale;
     return [
-      scale * x / perspective,
-      scale * y / perspective,
-      scale * z / perspective
+      cubeScale * x,
+      cubeScale * y,
+      cubeScale * z
     ] as Vec3;
   });
   
-  // Create the 32 edges - connect vertices that differ in exactly one coordinate
+  // Identify which vertices belong to inner vs outer cube
+  const innerVertices = new Set<number>();
+  const outerVertices = new Set<number>();
+  vertices4D.forEach((v, i) => {
+    if (v[3] < 0) innerVertices.add(i);
+    else outerVertices.add(i);
+  });
+  
+  // Generate the 32 edges of the tesseract
+  // An edge exists between vertices that differ by exactly one coordinate
   const tesseractEdges: [number, number][] = [];
   for (let i = 0; i < 16; i++) {
-    for (let j = i + 1; j < 16; j++) {
-      // Count how many bits differ between i and j
-      const diff = i ^ j;
-      const bitCount = ((diff & 1) ? 1 : 0) + ((diff & 2) ? 1 : 0) + 
-                      ((diff & 4) ? 1 : 0) + ((diff & 8) ? 1 : 0);
-      
-      // Connect if exactly one bit differs (adjacent in 4D)
-      if (bitCount === 1) {
+    for (let bit = 0; bit < 4; bit++) {
+      const j = i ^ (1 << bit); // Flip one bit
+      if (j > i) { // Avoid duplicates
         tesseractEdges.push([i, j]);
       }
     }
   }
   
-  // Now we have 16 vertices and 32 edges, but we need 729 points
-  // Interpolate points along edges and inside the tesseract
+  // Categorize edges:
+  // - Inner cube edges (both vertices have w = -1)
+  // - Outer cube edges (both vertices have w = +1)  
+  // - Connecting edges (vertices have different w values)
+  const innerEdges: [number, number][] = [];
+  const outerEdges: [number, number][] = [];
+  const connectingEdges: [number, number][] = [];
+  
+  tesseractEdges.forEach(([a, b]) => {
+    const aInner = innerVertices.has(a);
+    const bInner = innerVertices.has(b);
+    
+    if (aInner && bInner) {
+      innerEdges.push([a, b]);
+    } else if (!aInner && !bInner) {
+      outerEdges.push([a, b]);
+    } else {
+      connectingEdges.push([a, b]);
+    }
+  });
+  
+  // Build final positions and edges
   const positions: Vec3[] = [];
   const edges: [number, number][] = [];
   
-  // Add the 16 main vertices
-  tesseractPositions.forEach(pos => {
-    positions.push([pos[0] + ε(), pos[1] + ε(), pos[2] + ε()]);
+  // Add the 16 vertices first
+  vertices3D.forEach(v => {
+    positions.push([v[0] + ε(), v[1] + ε(), v[2] + ε()]);
   });
   
-  // Add points along edges
-  const pointsPerEdge = 20;
-  tesseractEdges.forEach(([a, b]) => {
-    for (let i = 1; i < pointsPerEdge; i++) {
-      const t = i / pointsPerEdge;
-      const pos = lerpVec3(tesseractPositions[a], tesseractPositions[b], t);
-      positions.push([pos[0] + ε(), pos[1] + ε(), pos[2] + ε()]);
-    }
-  });
+  // Calculate points to add per edge type to distribute N points
+  const totalEdges = innerEdges.length + outerEdges.length + connectingEdges.length;
+  const remainingPoints = N - 16;
+  const basePointsPerEdge = Math.floor(remainingPoints / totalEdges);
   
-  // Fill remaining points inside the tesseract volume
+  let currentIdx = 16;
+  
+  // Helper to add points along an edge
+  const addEdgePoints = (edgeList: [number, number][], pointsPerEdge: number) => {
+    edgeList.forEach(([a, b]) => {
+      const edgeIndices: number[] = [a];
+      
+      // Add interpolated points along the edge
+      for (let i = 1; i <= pointsPerEdge; i++) {
+        const t = i / (pointsPerEdge + 1);
+        const pos = lerpVec3(vertices3D[a], vertices3D[b], t);
+        positions.push([pos[0] + ε(), pos[1] + ε(), pos[2] + ε()]);
+        edgeIndices.push(currentIdx++);
+      }
+      
+      edgeIndices.push(b);
+      
+      // Connect all points along this edge
+      for (let i = 0; i < edgeIndices.length - 1; i++) {
+        edges.push([edgeIndices[i], edgeIndices[i + 1]]);
+      }
+    });
+  };
+  
+  // Add points along outer cube edges (12 edges)
+  addEdgePoints(outerEdges, basePointsPerEdge);
+  
+  // Add points along inner cube edges (12 edges)
+  addEdgePoints(innerEdges, basePointsPerEdge);
+  
+  // Add points along connecting edges (8 edges connecting corners)
+  addEdgePoints(connectingEdges, basePointsPerEdge);
+  
+  // Fill remaining points on the outer cube surface (no internal clutter)
   while (positions.length < N) {
-    // Random point inside the tesseract bounds
-    const r = 0.3 + 0.7 * Math.random(); // Radius multiplier
-    
-    // Pick a random vertex and move toward center
-    const vertexIdx = Math.floor(Math.random() * 16);
-    const vertex = tesseractPositions[vertexIdx];
-    
+    // Place remaining points on outer cube edges only
+    const edgeIdx = Math.floor(Math.random() * outerEdges.length);
+    const [a, b] = outerEdges[edgeIdx];
+    const t = Math.random();
+    const pos = lerpVec3(vertices3D[a], vertices3D[b], t);
     positions.push([
-      vertex[0] * r + ε(),
-      vertex[1] * r + ε(),
-      vertex[2] * r + ε()
+      pos[0] + ε(),
+      pos[1] + ε(), 
+      pos[2] + ε()
     ]);
   }
-  
-  // Create edges for visualization
-  // Map original vertex indices to new positions
-  const vertexMapping = new Map<number, number>();
-  for (let i = 0; i < 16; i++) {
-    vertexMapping.set(i, i);
-  }
-  
-  // Map edge points to their positions
-  let idx = 16;
-  const edgePointMapping = new Map<string, number[]>();
-  tesseractEdges.forEach(([a, b]) => {
-    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
-    const points: number[] = [];
-    for (let i = 0; i < pointsPerEdge; i++) {
-      if (i > 0 && i < pointsPerEdge) {
-        points.push(idx++);
-      }
-    }
-    edgePointMapping.set(key, points);
-  });
-  
-  // Connect the tesseract edges properly
-  tesseractEdges.forEach(([a, b]) => {
-    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
-    const edgePoints = edgePointMapping.get(key) || [];
-    
-    // Connect vertex a to first edge point
-    if (edgePoints.length > 0) {
-      edges.push([a, edgePoints[0]]);
-      
-      // Connect edge points to each other
-      for (let i = 0; i < edgePoints.length - 1; i++) {
-        edges.push([edgePoints[i], edgePoints[i + 1]]);
-      }
-      
-      // Connect last edge point to vertex b
-      edges.push([edgePoints[edgePoints.length - 1], b]);
-    } else {
-      // Direct connection if no edge points
-      edges.push([a, b]);
-    }
-  });
   
   return makeLayout(positions, edges);
 };

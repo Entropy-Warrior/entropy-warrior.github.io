@@ -10,11 +10,11 @@ export default {
         DEFAULT: {
           css: {
             maxWidth: 'none',
+            // All colors now use CSS variables defined in global.css
             color: 'var(--prose-body)',
             a: {
               color: 'var(--prose-links)',
               '&:hover': {
-                color: 'var(--prose-links)',
                 opacity: '0.8',
               },
             },

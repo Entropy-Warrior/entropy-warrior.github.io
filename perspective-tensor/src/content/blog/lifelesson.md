@@ -20,4 +20,10 @@ Lately, while diving into the latest and newest techniques in the world of AI, I
 
 - **ReAct & Train of Thoughts**: Knowledge alone is not enough, same for LLM and same for us. Probably a realization felt by many folks who endured the journal of obtaining a PhD. Often time, the most valuable thing you gain from the degree is not the science and knowledge itself, rather it is how you think and approach problems.
 
-(origin posted on my LinkedIn: https://www.linkedin.com/pulse/life-lessons-from-machine-learning-lin-wang-hlv6c/)
+*This post was originally published on LinkedIn[^1].*
+
+---
+
+## References
+
+[^1]: Wang, L. (2024). [Life Lessons from Machine Learning](https://www.linkedin.com/pulse/life-lessons-from-machine-learning-lin-wang-hlv6c/). LinkedIn.
