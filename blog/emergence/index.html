@@ -1,0 +1,95 @@
+<!DOCTYPE html><html lang="en" class="min-h-full"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><meta name="author" content="Lin Wang"><meta name="description" content="Understanding how complex behaviors emerge from simple rules in nature and AI systems"><!-- Canonical URL --><link rel="canonical" href="https://entropy-warrior.github.io/blog/emergence/"><!-- Open Graph / Facebook --><meta property="og:type" content="article"><meta property="og:url" content="https://entropy-warrior.github.io/blog/emergence/"><meta property="og:title" content="From Bird Flocks to Intelligence: The Power of Emergence — Perspective Tensor"><meta property="og:description" content="Understanding how complex behaviors emerge from simple rules in nature and AI systems"><meta property="og:image" content="https://entropy-warrior.github.io/images/emergence.png"><meta property="og:site_name" content="Perspective Tensor"><meta property="og:locale" content="en_US"><meta property="article:published_time" content="2024-04-20T00:00:00.000Z"><meta property="article:author" content="Lin Wang"><!-- Twitter --><meta property="twitter:card" content="summary_large_image"><meta property="twitter:url" content="https://entropy-warrior.github.io/blog/emergence/"><meta property="twitter:title" content="From Bird Flocks to Intelligence: The Power of Emergence — Perspective Tensor"><meta property="twitter:description" content="Understanding how complex behaviors emerge from simple rules in nature and AI systems"><meta property="twitter:image" content="https://entropy-warrior.github.io/images/emergence.png"><meta property="twitter:creator" content="@entropy_warrior"><!-- Favicon --><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"><link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"><!-- RSS Feed --><link rel="alternate" type="application/rss+xml" title="Perspective Tensor" href="/rss.xml"><title>From Bird Flocks to Intelligence: The Power of Emergence — Perspective Tensor</title><meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="animate"><script type="module" src="/_astro/ClientRouter.astro_astro_type_script_index_0_lang.DZnDNxNb.js"></script><link rel="stylesheet" href="/_astro/_slug_.DC27v3W4.css"></head> <body class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen flex flex-col overflow-x-hidden"> <!-- Skip to main content for accessibility --> <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-gray-600 text-white px-4 py-2 rounded z-50">
+Skip to main content
+</a> <header class="w-full border-b border-gray-100 dark:border-gray-900"> <div class="mx-auto max-w-7xl px-4 py-2 flex items-center justify-between"> <a href="/" class="font-display text-base hover:text-gray-600 dark:hover:text-gray-400" data-astro-history="push">
+Perspective Tensor
+</a> <nav class="flex items-center space-x-4"> <a href="/blog" class="text-base font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 transition-colors" data-astro-history="push">
+Blog
+</a> <button id="themeToggle" class="p-2 rounded-md border-0 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200" aria-label="Toggle theme"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5"> <!-- Sun icon --> <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" class="sun-icon opacity-100 dark:opacity-0 transition-opacity duration-200"></circle> <g stroke="currentColor" stroke-width="2" class="sun-icon opacity-100 dark:opacity-0 transition-opacity duration-200"> <line x1="12" y1="1" x2="12" y2="3"></line> <line x1="12" y1="21" x2="12" y2="23"></line> <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line> <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line> <line x1="1" y1="12" x2="3" y2="12"></line> <line x1="21" y1="12" x2="23" y2="12"></line> <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line> <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line> </g> <!-- Moon icon --> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" fill="none" class="moon-icon opacity-0 dark:opacity-100 transition-opacity duration-200"></path> </svg> </button> <script>
+  // Initialize theme on page load
+  function initTheme() {
+    try {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    } catch (e) {
+      console.error('Theme initialization error:', e);
+    }
+  }
+
+  // Toggle theme function
+  function toggleTheme(event) {
+    try {
+      event?.preventDefault();
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      
+      if (isDark) {
+        html.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      
+      // Force repaint
+      html.style.colorScheme = isDark ? 'light' : 'dark';
+    } catch (e) {
+      console.error('Theme toggle error:', e);
+    }
+  }
+
+  // Setup event listeners
+  function setupThemeToggle() {
+    const button = document.getElementById('themeToggle');
+    if (button) {
+      // Remove existing listeners
+      button.removeEventListener('click', toggleTheme);
+      // Add new listener
+      button.addEventListener('click', toggleTheme);
+    }
+  }
+
+  // Initialize theme immediately (before DOM is ready)
+  initTheme();
+
+  // Setup when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupThemeToggle);
+  } else {
+    setupThemeToggle();
+  }
+  
+  // Handle Astro view transitions
+  document.addEventListener('astro:after-swap', () => {
+    initTheme();
+    setupThemeToggle();
+  });
+  
+  document.addEventListener('astro:page-load', () => {
+    initTheme();
+    setupThemeToggle();
+  });
+</script> </nav> </div> </header> <main id="main-content" class="flex-1 mx-auto max-w-7xl w-full px-6 py-4">  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"From Bird Flocks to Intelligence: The Power of Emergence","description":"Understanding how complex behaviors emerge from simple rules in nature and AI systems","author":{"@type":"Person","name":"Lin Wang","url":"https://perspective-tensor.dev"},"publisher":{"@type":"Organization","name":"Perspective Tensor","logo":{"@type":"ImageObject","url":"https://perspective-tensor.dev/favicon.svg"}},"datePublished":"2024-04-20T00:00:00.000Z","dateModified":"2024-04-20T00:00:00.000Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://entropy-warrior.github.io/blog/emergence"},"image":"https://entropy-warrior.github.io/images/emergence.png"}</script>  <nav class="mb-8" aria-label="Breadcrumb"> <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400"> <li> <a href="/" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Home</a> </li> <li class="flex items-center"> <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20"> <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path> </svg> <a href="/blog" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Blog</a> </li> <li class="flex items-center"> <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20"> <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path> </svg> <span class="text-gray-700 dark:text-gray-300">From Bird Flocks to Intelligence: The Power of Emergence</span> </li> </ol> </nav> <article class="prose lg:prose-xl mx-auto dark:prose-invert"> <header class="mb-8 not-prose"> <h1 class="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">From Bird Flocks to Intelligence: The Power of Emergence</h1> <time class="text-gray-600 dark:text-gray-400 block mb-4" datetime="2024-04-20T00:00:00.000Z"> April 19, 2024 </time> <p class="text-xl text-gray-700 dark:text-gray-300 leading-relaxed">Understanding how complex behaviors emerge from simple rules in nature and AI systems</p> </header> <p><img src="/images/emergence.png" alt="Time-lapse photography showing the emergent patterns of bird flock movement">
+<em>(An image from Xavi Bou’s project Ornitographies.)</em></p>
+<p>Have you ever found bird flocks mesmerizing? I certainly do. But did you know that it’s not the birds that memorize, but the flock itself? This behavior arises from simple rules and interactions. It’s fascinating how a system with simple components and rules can create something incredibly complex and sophisticated. I find this theme absolutely captivating and wanted to share it with you.</p>
+<p>To form a flock with morphing patterns, each bird follows simple rules based on its neighbors, yet together they create stunning, coordinated patterns. There’s no leader, no master plan—just simple interactions creating beautiful complexity. Now, think about financial markets: Individual traders, each making decisions based on personal goals and available information, collectively create market trends, bubbles, and crashes. It’s not that any one trader is orchestrating these large-scale phenomena, but their combined actions lead to the complex behavior we observe in the market.</p>
+<p>The concept of emergency is also deeply connected to the latest buzz in town: AI, especially with large language models (LLMs) like OpenAI’s GPT series. These models are based on fundamental principles of neural networks and machine learning algorithms. However, as the size of these models increases, they are able to comprehend and generate human-like text, engage in complex reasoning, and produce original content. These advanced capabilities are a result of the interaction of many simple processing units, which frequently leads to astonishing results - often causing us to overlook the fundamental nature underlying all of this.</p>
+<p>If we break intelligence down to its core, it contains three parts: the ability to learn, the ability to adapt, and the ability to solve problems. All of these can be achieved by simple rules. The ability to learn has been shown to be achievable by backpropagation and gradient descent. Adaptation can be achieved by evolutionary processes such as random mutation and survival of the fittest. Problem-solving can be achieved by swarm intelligence methods such as cellular automata.</p>
+<p>The beauty of emergence lies in its simplicity. It shows us that even basic interactions can lead to profound outcomes. This idea applies across nature, technology, and our own thought processes. One implication that excites me the most is that we should not be daunted by the complexity or emergent capabilities themselves. What we should be paying attention to are their fundamental units - studying and understanding them helps us learn and leverage much bigger and more complex systems in the ever-changing world.</p>
+<hr>
+<p><strong>Citations:</strong></p>
+<ol>
+<li><a href="https://dl.acm.org/doi/10.1145/37402.37406">Reynolds, C. W. (1987). Flocks, herds and schools: A distributed behavioral model. ACM SIGGRAPH Computer Graphics, 21(4), 25-34.</a></li>
+<li><a href="https://www.nature.com/articles/nature03236">Couzin, I. D., Krause, J., Franks, N. R., &#x26; Levin, S. A. (2005). Effective leadership and decision-making in animal groups on the move. Nature, 433(7025), 513-516.</a></li>
+<li><a href="https://arxiv.org/abs/2005.14165">Brown, T. B., Mann, B., Ryder, N., et al. (2020). Language models are few-shot learners. Advances in Neural Information Processing Systems, 33, 1877-1901.</a></li>
+<li><a href="https://www.tandfonline.com/doi/full/10.31887/DCNS.2012.14.1/rsternberg">Sternberg, R. J. (2012). Intelligence. Dialogues in Clinical Neuroscience, 14(1), 19-27.</a></li>
+</ol> </article>  </main> <footer class="fixed bottom-4 right-4 z-40"> <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg px-3 py-2"> <div class="flex items-center gap-4 text-xs"> <div class="font-display text-gray-500 dark:text-gray-400">
+© 2025 Lin Wang
+</div> <nav class="flex items-center gap-3"> <a href="https://linkedin.com/in/lin-wang-entropy-warrior" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"> <span class="sr-only">LinkedIn</span> <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"> <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"></path> </svg> </a> <a href="https://github.com/entropy-warrior" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"> <span class="sr-only">GitHub</span> <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"> <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"></path> </svg> </a> </nav> </div> </div> </footer> </body></html>

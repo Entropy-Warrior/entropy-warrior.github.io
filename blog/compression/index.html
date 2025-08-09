@@ -1,0 +1,107 @@
+<!DOCTYPE html><html lang="en" class="min-h-full"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="index, follow"><meta name="author" content="Lin Wang"><meta name="description" content="Exploring how data science models are essentially sophisticated forms of compression"><!-- Canonical URL --><link rel="canonical" href="https://entropy-warrior.github.io/blog/compression/"><!-- Open Graph / Facebook --><meta property="og:type" content="article"><meta property="og:url" content="https://entropy-warrior.github.io/blog/compression/"><meta property="og:title" content="Modeling and Compression — Perspective Tensor"><meta property="og:description" content="Exploring how data science models are essentially sophisticated forms of compression"><meta property="og:image" content="https://entropy-warrior.github.io/images/blackhole.png"><meta property="og:site_name" content="Perspective Tensor"><meta property="og:locale" content="en_US"><meta property="article:published_time" content="2024-05-15T00:00:00.000Z"><meta property="article:author" content="Lin Wang"><!-- Twitter --><meta property="twitter:card" content="summary_large_image"><meta property="twitter:url" content="https://entropy-warrior.github.io/blog/compression/"><meta property="twitter:title" content="Modeling and Compression — Perspective Tensor"><meta property="twitter:description" content="Exploring how data science models are essentially sophisticated forms of compression"><meta property="twitter:image" content="https://entropy-warrior.github.io/images/blackhole.png"><meta property="twitter:creator" content="@entropy_warrior"><!-- Favicon --><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"><link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"><!-- RSS Feed --><link rel="alternate" type="application/rss+xml" title="Perspective Tensor" href="/rss.xml"><title>Modeling and Compression — Perspective Tensor</title><meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="animate"><script type="module" src="/_astro/ClientRouter.astro_astro_type_script_index_0_lang.DZnDNxNb.js"></script><link rel="stylesheet" href="/_astro/_slug_.DC27v3W4.css"></head> <body class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen flex flex-col overflow-x-hidden"> <!-- Skip to main content for accessibility --> <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-gray-600 text-white px-4 py-2 rounded z-50">
+Skip to main content
+</a> <header class="w-full border-b border-gray-100 dark:border-gray-900"> <div class="mx-auto max-w-7xl px-4 py-2 flex items-center justify-between"> <a href="/" class="font-display text-base hover:text-gray-600 dark:hover:text-gray-400" data-astro-history="push">
+Perspective Tensor
+</a> <nav class="flex items-center space-x-4"> <a href="/blog" class="text-base font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 transition-colors" data-astro-history="push">
+Blog
+</a> <button id="themeToggle" class="p-2 rounded-md border-0 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200" aria-label="Toggle theme"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5"> <!-- Sun icon --> <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" class="sun-icon opacity-100 dark:opacity-0 transition-opacity duration-200"></circle> <g stroke="currentColor" stroke-width="2" class="sun-icon opacity-100 dark:opacity-0 transition-opacity duration-200"> <line x1="12" y1="1" x2="12" y2="3"></line> <line x1="12" y1="21" x2="12" y2="23"></line> <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line> <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line> <line x1="1" y1="12" x2="3" y2="12"></line> <line x1="21" y1="12" x2="23" y2="12"></line> <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line> <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line> </g> <!-- Moon icon --> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" fill="none" class="moon-icon opacity-0 dark:opacity-100 transition-opacity duration-200"></path> </svg> </button> <script>
+  // Initialize theme on page load
+  function initTheme() {
+    try {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    } catch (e) {
+      console.error('Theme initialization error:', e);
+    }
+  }
+
+  // Toggle theme function
+  function toggleTheme(event) {
+    try {
+      event?.preventDefault();
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      
+      if (isDark) {
+        html.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      
+      // Force repaint
+      html.style.colorScheme = isDark ? 'light' : 'dark';
+    } catch (e) {
+      console.error('Theme toggle error:', e);
+    }
+  }
+
+  // Setup event listeners
+  function setupThemeToggle() {
+    const button = document.getElementById('themeToggle');
+    if (button) {
+      // Remove existing listeners
+      button.removeEventListener('click', toggleTheme);
+      // Add new listener
+      button.addEventListener('click', toggleTheme);
+    }
+  }
+
+  // Initialize theme immediately (before DOM is ready)
+  initTheme();
+
+  // Setup when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupThemeToggle);
+  } else {
+    setupThemeToggle();
+  }
+  
+  // Handle Astro view transitions
+  document.addEventListener('astro:after-swap', () => {
+    initTheme();
+    setupThemeToggle();
+  });
+  
+  document.addEventListener('astro:page-load', () => {
+    initTheme();
+    setupThemeToggle();
+  });
+</script> </nav> </div> </header> <main id="main-content" class="flex-1 mx-auto max-w-7xl w-full px-6 py-4">  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Modeling and Compression","description":"Exploring how data science models are essentially sophisticated forms of compression","author":{"@type":"Person","name":"Lin Wang","url":"https://perspective-tensor.dev"},"publisher":{"@type":"Organization","name":"Perspective Tensor","logo":{"@type":"ImageObject","url":"https://perspective-tensor.dev/favicon.svg"}},"datePublished":"2024-05-15T00:00:00.000Z","dateModified":"2024-05-15T00:00:00.000Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://entropy-warrior.github.io/blog/compression"},"image":"https://entropy-warrior.github.io/images/blackhole.png"}</script>  <nav class="mb-8" aria-label="Breadcrumb"> <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400"> <li> <a href="/" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Home</a> </li> <li class="flex items-center"> <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20"> <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path> </svg> <a href="/blog" class="hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-astro-history="push">Blog</a> </li> <li class="flex items-center"> <svg class="w-4 h-4 mx-1" fill="currentColor" viewBox="0 0 20 20"> <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path> </svg> <span class="text-gray-700 dark:text-gray-300">Modeling and Compression</span> </li> </ol> </nav> <article class="prose lg:prose-xl mx-auto dark:prose-invert"> <header class="mb-8 not-prose"> <h1 class="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">Modeling and Compression</h1> <time class="text-gray-600 dark:text-gray-400 block mb-4" datetime="2024-05-15T00:00:00.000Z"> May 14, 2024 </time> <p class="text-xl text-gray-700 dark:text-gray-300 leading-relaxed">Exploring how data science models are essentially sophisticated forms of compression</p> </header> <p><img src="/images/blackhole.png" alt="Abstract representation of data compression with swirling patterns resembling a black hole"></p>
+<h2 id="think-your-model-is-smart-its-actually-just-really-good-at-compression">Think Your Model is Smart? It’s Actually Just Really Good at Compression</h2>
+<p>Data scientists are the modern-day wizards, conjuring insights from chaos. But have you ever considered that these magical models are essentially performing a high-tech form of data compression?</p>
+<p>Let’s break it down.</p>
+<h3 id="models-the-executive-summary-of-reality">Models: The Executive Summary of Reality</h3>
+<p>Imagine cramming a semester’s worth of history into a bite-sized executive summary. That’s the essence of modeling in the world of data science. We take complex and messy datasets and distill them down to the key ingredients that infer the outcome we care about. It’s like creating a newsletter for an event, capturing the essential points without the fluff.</p>
+<h3 id="lossy-vs-lossless-the-trade-off">Lossy vs. Lossless: The Trade-off</h3>
+<p>In the compression world, we have two options:</p>
+<ul>
+<li><strong>Lossless</strong>: Perfect reconstruction, but a larger file size (think PNGs). In modeling, this is like having a replica of the system itself – rarely practical.</li>
+<li><strong>Lossy</strong>: Smaller file size, but some details are lost (think JPEGs). Most models fall into this category, sacrificing some accuracy for efficiency.</li>
+</ul>
+<p>But how do we decide what to toss? That’s where loss functions come in, acting as our quality control inspectors. They help us find the sweet spot between compression and accuracy, just like choosing the right JPEG quality setting.</p>
+<h3 id="the-compression-lens-a-perspective-on-modeling">The Compression Lens: A Perspective on Modeling</h3>
+<p>This perspective unlocks some intriguing insights:</p>
+<h4 id="chaos-is-uncompressible">Chaos is Uncompressible</h4>
+<p>Ever tried to summarize all Wikipedia pages into a one-pager? Some systems are inherently broad and disordered, or have too much “entropy” (as an information theory geek like myself would say), to model effectively. It’s like trying to stuff a beach ball into a shoebox. The best and possibly only model for chaos is chaos itself.</p>
+<h4 id="not-all-features-are-created-equal">Not All Features Are Created Equal</h4>
+<p>Just as you’d prioritize the plot over minor details when summarizing a book, model compression helps us identify the most important features for prediction. Pruning those irrelevant details can lead to smaller, faster, and even more accurate models.</p>
+<h4 id="out-of-distribution-the-stress-test">Out-of-Distribution: The Stress Test</h4>
+<p>A good summary of an introductory math textbook should theoretically serve well as a summary for any other introductory math textbook. Similarly, compressed models should generalize well to new, unseen datasets within their target domain or objective – this is, in fact, a good way to measure the robustness of a model.</p>
+<h4 id="causality-the-plot-thickens">Causality: The Plot Thickens</h4>
+<p>Uncovering causal relationships is like finding the hidden plot twists in a story. Don’t you hate it when you want a synopsis of an episode on Netflix that you want to “speed-run” by, but it is in spoiler-free form? By understanding why things happen – the inner plot – we can create models that are not only more accurate but also explainable.</p>
+<h4 id="signal-vs-noise-the-art-of-distillation">Signal vs. Noise: The Art of Distillation</h4>
+<p>Just as compression removes the static from a radio broadcast, modeling helps us separate the signal (the meaningful patterns) from the noise (the random fluctuations) in data. By focusing on the signal, we build models that are more robust to outliers and better at capturing the true underlying relationships.</p>
+<h3 id="the-bottom-line">The Bottom Line</h3>
+<p>By viewing modeling through the lens of compression, we gain a powerful new tool for understanding, optimizing, and creating better models. It’s a shift in perspective that can lead to more efficient, accurate, and insightful predictions – and who wouldn’t want that?</p> </article>  </main> <footer class="fixed bottom-4 right-4 z-40"> <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg px-3 py-2"> <div class="flex items-center gap-4 text-xs"> <div class="font-display text-gray-500 dark:text-gray-400">
+© 2025 Lin Wang
+</div> <nav class="flex items-center gap-3"> <a href="https://linkedin.com/in/lin-wang-entropy-warrior" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"> <span class="sr-only">LinkedIn</span> <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"> <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"></path> </svg> </a> <a href="https://github.com/entropy-warrior" target="_blank" rel="noopener noreferrer" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"> <span class="sr-only">GitHub</span> <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"> <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"></path> </svg> </a> </nav> </div> </div> </footer> </body></html>
