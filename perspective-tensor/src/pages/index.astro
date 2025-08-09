@@ -37,7 +37,9 @@ const websiteData = {
       <AnimationCanvas client:load />
       
       <!-- Layer 2: Gradient blend screen (same size/position as canvas) -->
-      <div class="absolute inset-0 pointer-events-none z-10" style="background: radial-gradient(ellipse at center, transparent 0%, transparent 55%, rgba(255,255,255,0.1) 60%, rgba(255,255,255,0.2) 65%, rgba(255,255,255,0.4) 70%, rgba(255,255,255,0.6) 75%, rgba(255,255,255,0.8) 80%, rgba(255,255,255,0.95) 85%, rgba(255,255,255,1) 90%, rgba(255,255,255,1) 95%, rgba(255,255,255,1) 100%);"></div>
+      <div class="absolute inset-0 pointer-events-none z-10 dark:hidden" style="background: radial-gradient(ellipse at center, transparent 0%, transparent 55%, rgba(255,255,255,0.1) 60%, rgba(255,255,255,0.2) 65%, rgba(255,255,255,0.4) 70%, rgba(255,255,255,0.6) 75%, rgba(255,255,255,0.8) 80%, rgba(255,255,255,0.95) 85%, rgba(255,255,255,1) 90%, rgba(255,255,255,1) 95%, rgba(255,255,255,1) 100%);"></div>
+      <!-- Dark mode gradient blend -->
+      <div class="absolute inset-0 pointer-events-none z-10 hidden dark:block" style="background: radial-gradient(ellipse at center, transparent 0%, transparent 55%, rgba(17,24,39,0.1) 60%, rgba(17,24,39,0.2) 65%, rgba(17,24,39,0.4) 70%, rgba(17,24,39,0.6) 75%, rgba(17,24,39,0.8) 80%, rgba(17,24,39,0.95) 85%, rgba(17,24,39,1) 90%, rgba(17,24,39,1) 95%, rgba(17,24,39,1) 100%);"></div>
       
       <!-- Interactive trigger for tooltip (covers canvas only) -->
       <div class="absolute inset-0 cursor-pointer z-20" id="canvas-trigger">
