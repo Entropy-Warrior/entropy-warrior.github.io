@@ -33,22 +33,6 @@ const websiteData = {
   <StructuredData type="WebSite" data={websiteData} />
   <div class="relative flex items-center justify-center min-h-[calc(100vh-12rem)] w-full">
     <AnimationCanvas client:load />
-    <!-- Invisible border blocks for elegant out-of-bounds fade -->
-    <div class="absolute inset-0 pointer-events-none z-10">
-      <!-- Top edge -->
-      <div class="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
-      <!-- Bottom edge -->
-      <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
-      <!-- Left edge -->
-      <div class="absolute top-0 bottom-0 left-0 w-12 bg-gradient-to-r from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
-      <!-- Right edge -->
-      <div class="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-white/5 via-white/[0.02] to-transparent dark:from-gray-900/20 dark:via-gray-900/5 backdrop-blur-md"></div>
-      <!-- Corners for smoother transitions -->
-      <div class="absolute top-0 left-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-br-lg"></div>
-      <div class="absolute top-0 right-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-bl-lg"></div>
-      <div class="absolute bottom-0 left-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-tr-lg"></div>
-      <div class="absolute bottom-0 right-0 w-12 h-12 bg-white/5 dark:bg-gray-900/20 backdrop-blur-md rounded-tl-lg"></div>
-    </div>
     <div class="absolute inset-0 flex items-end justify-center pointer-events-none z-20">
       <p class="text-base md:text-lg lg:text-xl text-blue-950 dark:text-blue-200 font-light leading-relaxed tracking-wide text-center px-2 py-1 mx-8 md:mx-12 lg:mx-16 mb-12 md:mb-16 lg:mb-20 animate-fade-in-up bg-white/10 dark:bg-gray-900/30 backdrop-blur-sm rounded-lg">
         I explore the patterns connecting machine intelligence, organizational dynamics, and personal growth — join me in navigating this multidimensional space where technology and humanity converge.
@@ -58,8 +42,8 @@ const websiteData = {
     <a href="/blog" class="group absolute top-0 left-0 right-0 bottom-20 md:bottom-24 lg:bottom-28 z-30 cursor-pointer" data-astro-history="push" aria-label="Go to blog" id="blog-link">
       <!-- Elegant mouse-tracking tooltip -->
       <div id="mouse-tooltip" class="fixed opacity-0 transition-opacity duration-500 ease-out pointer-events-none z-40">
-        <div class="bg-white/5 dark:bg-gray-900/10 backdrop-blur-lg border border-blue-100/10 dark:border-blue-300/10 rounded-xl px-3 py-1.5 shadow-2xl ml-3">
-          <div class="text-sm font-light text-blue-800 dark:text-blue-200 tracking-wide whitespace-nowrap">
+        <div class="bg-white/5 dark:bg-gray-900/10 backdrop-blur-lg border border-gray-200/10 dark:border-gray-600/10 rounded-xl px-3 py-1.5 shadow-2xl ml-3">
+          <div class="text-sm font-light text-gray-700 dark:text-gray-300 tracking-wide whitespace-nowrap">
             <span id="typewriter-text"></span><span class="typewriter-cursor">|</span>
           </div>
         </div>

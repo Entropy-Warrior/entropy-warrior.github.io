@@ -3,6 +3,8 @@ title: "Complextropy and Complexodynamics - Sutskever Reading List Series"
 description: "Exploring the concept of sophistication and meaningful complexity through the lens of coffee and milk mixing dynamics"
 pubDate: 2025-06-28
 draft: false
+tags: ["complexity", "entropy", "machine-learning", "first-principles"]
+section: "thoughts"
 author: "Lin Wang"
 ---
 

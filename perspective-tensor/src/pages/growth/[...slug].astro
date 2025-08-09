@@ -1,0 +1,136 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import StructuredData from '../../components/StructuredData.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const growthPosts = await getCollection('growth');
+  return growthPosts.map((post) => ({
+    params: { slug: post.id },
+    props: { post }
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+// Structured data for growth post
+const postData = {
+  "@type": "Article",
+  headline: post.data.title || post.id,
+  description: post.data.description || '',
+  author: {
+    "@type": "Person",
+    name: post.data.author || "Lin Wang",
+    url: "https://perspective-tensor.dev"
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "Perspective Tensor",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://perspective-tensor.dev/favicon.svg"
+    }
+  },
+  datePublished: post.data.pubDate?.toISOString(),
+  dateModified: post.data.pubDate?.toISOString(),
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": new URL(`/growth/${post.id}`, Astro.site || 'https://perspective-tensor.dev')
+  }
+};
+---
+
+<BaseLayout 
+  title={post.data.title || post.id}
+  description={post.data.description}
+>
+  <StructuredData type="Article" data={postData} />
+  
+  <div class="max-w-3xl mx-auto px-4">
+    <!-- Navigation -->
+    <nav class="mb-12" aria-label="Breadcrumb">
+      <div class="flex items-center justify-between">
+        <a 
+          href="/growth"
+          class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-300 group"
+          data-astro-history="push"
+        >
+          <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span class="font-light">Back to growth</span>
+        </a>
+        
+        {post.data.pubDate && (
+          <time 
+            class="text-xs text-gray-500 dark:text-gray-400 font-light" 
+            datetime={post.data.pubDate.toISOString()}
+          >
+            {post.data.pubDate.toLocaleDateString('en-US', { 
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })}
+          </time>
+        )}
+      </div>
+    </nav>
+    
+    <article>
+      <!-- Header -->
+      <header class="mb-12 text-center">
+        <h1 class="text-2xl md:text-3xl font-light text-gray-900 dark:text-gray-100 mb-4 leading-relaxed">
+          {post.data.title || post.id}
+        </h1>
+        {post.data.description && (
+          <p class="text-base text-gray-600 dark:text-gray-400 font-light max-w-2xl mx-auto leading-relaxed">
+            {post.data.description}
+          </p>
+        )}
+      </header>
+      
+      <!-- Content with growth-focused typography -->
+      <div class="
+        prose prose-lg prose-gray dark:prose-invert 
+        prose-headings:font-light 
+        prose-headings:text-gray-900 dark:prose-headings:text-gray-100
+        prose-h1:text-3xl prose-h1:mb-6 prose-h1:mt-10
+        prose-h2:text-2xl prose-h2:mb-4 prose-h2:mt-8 prose-h2:font-light
+        prose-h3:text-xl prose-h3:mb-3 prose-h3:mt-6
+        prose-p:text-gray-900 dark:prose-p:text-gray-300
+        prose-p:font-light prose-p:leading-relaxed prose-p:mb-4
+        prose-li:text-gray-900 dark:prose-li:text-gray-300
+        prose-li:font-light prose-li:leading-relaxed
+        prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+        prose-strong:font-medium prose-strong:text-gray-900 dark:prose-strong:text-gray-100
+        prose-code:text-sm prose-code:bg-gray-100 dark:prose-code:bg-gray-800 
+        prose-code:text-gray-900 dark:prose-code:text-gray-100
+        prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+        prose-pre:bg-gray-50 dark:prose-pre:bg-gray-900 
+        prose-pre:border prose-pre:border-gray-200 dark:prose-pre:border-gray-700
+        prose-blockquote:font-light prose-blockquote:border-l-2 
+        prose-blockquote:border-green-300 dark:prose-blockquote:border-green-600
+        prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400
+        prose-img:rounded-lg prose-img:shadow-sm prose-img:mx-auto
+        max-w-none
+      ">
+        <Content />
+      </div>
+      
+      <!-- Bottom navigation -->
+      <div class="mt-16">
+        <a 
+          href="/growth"
+          class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-300 group font-light"
+          data-astro-history="push"
+        >
+          <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span>View all growth posts</span>
+        </a>
+      </div>
+    </article>
+  </div>
+</BaseLayout>

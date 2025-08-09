@@ -1,0 +1,348 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import StructuredData from '../../components/StructuredData.astro';
+import Tag from '../../components/Tag.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const codeSnippets = await getCollection('code');
+  return codeSnippets.map((snippet) => ({
+    params: { slug: snippet.id },
+    props: { snippet }
+  }));
+}
+
+const { snippet } = Astro.props;
+const { Content } = await render(snippet);
+
+// Structured data for code snippet
+const snippetData = {
+  "@type": "TechArticle",
+  headline: snippet.data.title || snippet.id,
+  description: snippet.data.description || '',
+  author: {
+    "@type": "Person",
+    name: snippet.data.author || "Lin Wang",
+    url: "https://perspective-tensor.dev"
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "Perspective Tensor",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://perspective-tensor.dev/favicon.svg"
+    }
+  },
+  datePublished: snippet.data.pubDate?.toISOString(),
+  dateModified: snippet.data.pubDate?.toISOString(),
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": new URL(`/code/${snippet.id}`, Astro.site || 'https://perspective-tensor.dev')
+  }
+};
+---
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
+  
+  /* Define code theme variables */
+  :root {
+    --code-bg: 248, 250, 252;
+    --code-text: 30, 41, 59;
+    --inline-code-bg: 248, 250, 252;
+    --inline-code-text: 30, 41, 59;
+  }
+  
+  .dark {
+    --code-bg: 15, 23, 42;
+    --code-text: 226, 232, 240;
+    --inline-code-bg: 15, 23, 42;
+    --inline-code-text: 226, 232, 240;
+  }
+  
+  /* Technical content styling */
+  .technical-content {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    color: rgb(17 24 39);
+  }
+  
+  :global(.dark) .technical-content {
+    color: rgb(209 213 219);
+  }
+  
+  .technical-content :global(h2) {
+    font-size: 1.25rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    color: rgb(17 24 39);
+    margin-bottom: 0.5rem;
+    margin-top: 1.5rem;
+  }
+  
+  :global(.dark) .technical-content :global(h2) {
+    color: rgb(243 244 246);
+  }
+  
+  .technical-content :global(h3) {
+    font-size: 1.125rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    color: rgb(17 24 39);
+    margin-bottom: 0.375rem;
+    margin-top: 1rem;
+  }
+  
+  :global(.dark) .technical-content :global(h3) {
+    color: rgb(243 244 246);
+  }
+  
+  .technical-content :global(h4) {
+    font-size: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    color: rgb(17 24 39);
+    margin-bottom: 0.25rem;
+    margin-top: 0.75rem;
+  }
+  
+  :global(.dark) .technical-content :global(h4) {
+    color: rgb(243 244 246);
+  }
+  
+  .technical-content :global(p) {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 0.75rem;
+    font-weight: 300;
+  }
+  
+  .technical-content :global(ul),
+  .technical-content :global(ol) {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+    margin-left: 1.5rem;
+    font-weight: 300;
+  }
+  
+  .technical-content :global(li) {
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 0.25rem;
+    line-height: 1.5;
+    font-weight: 300;
+  }
+  
+  .technical-content :global(strong) {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    color: rgb(17 24 39);
+  }
+  
+  :global(.dark) .technical-content :global(strong) {
+    color: rgb(243 244 246);
+  }
+  
+  .technical-content :global(em) {
+    font-family: 'Inter', sans-serif;
+    color: rgb(37 99 235);
+    font-style: normal;
+    font-weight: 400;
+  }
+  
+  :global(.dark) .technical-content :global(em) {
+    color: rgb(96 165 250);
+  }
+  
+  .technical-content :global(a) {
+    font-family: 'Inter', sans-serif;
+    color: rgb(37 99 235);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+    transition: all 0.2s;
+  }
+  
+  :global(.dark) .technical-content :global(a) {
+    color: rgb(96 165 250);
+  }
+  
+  .technical-content :global(a:hover) {
+    text-decoration-style: solid;
+  }
+  
+  /* Inline code */
+  .technical-content :global(:not(pre) > code) {
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background-color: rgb(var(--inline-code-bg));
+    color: rgb(var(--inline-code-text));
+  }
+  
+  /* Code blocks with enhanced styling */
+  .technical-content :global(pre) {
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    margin-top: 0.5rem;
+    margin-left: 1.5rem;
+    margin-right: 1.5rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    background-color: rgb(var(--code-bg));
+    position: relative;
+  }
+  
+  .technical-content :global(pre code) {
+    display: block;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    color: rgb(var(--code-text));
+    tab-size: 2;
+  }
+  
+  /* Blockquotes */
+  .technical-content :global(blockquote) {
+    font-family: 'Inter', sans-serif;
+    padding-left: 0.75rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    margin-bottom: 0.75rem;
+    background-color: rgb(239 246 255);
+    font-size: 0.875rem;
+    font-style: italic;
+    font-weight: 300;
+  }
+  
+  :global(.dark) .technical-content :global(blockquote) {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  
+  /* Tables */
+  .technical-content :global(table) {
+    width: 100%;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+  }
+  
+  .technical-content :global(th) {
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    padding: 0.375rem;
+    background-color: rgb(249 250 251);
+    color: rgb(17 24 39);
+  }
+  
+  :global(.dark) .technical-content :global(th) {
+    background-color: rgb(17 24 39);
+    color: rgb(243 244 246);
+  }
+  
+  .technical-content :global(td) {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    padding: 0.375rem;
+  }
+  
+  :global(.dark) .technical-content :global(td) {
+  }
+  
+  .technical-content :global(tbody tr:hover) {
+    background-color: rgb(249 250 251);
+  }
+  
+  :global(.dark) .technical-content :global(tbody tr:hover) {
+    background-color: rgba(17, 24, 39, 0.5);
+  }
+  
+  /* Horizontal rules */
+  .technical-content :global(hr) {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    border: none;
+    height: 1px;
+    background-color: rgb(229 231 235);
+  }
+  
+  :global(.dark) .technical-content :global(hr) {
+    background-color: rgb(55 65 81);
+  }
+  
+  /* Images */
+  .technical-content :global(img) {
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    margin: 1rem auto;
+  }
+</style>
+
+<BaseLayout 
+  title={snippet.data.title || snippet.id}
+  description={snippet.data.description}
+>
+  <StructuredData type="TechArticle" data={snippetData} />
+  
+  <div class="max-w-6xl mx-auto px-4">
+    <!-- Navigation -->
+    <nav class="mb-8" aria-label="Breadcrumb">
+      <div class="flex items-center justify-between">
+        <a 
+          href="/code"
+          class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-300 group"
+          style="font-family: 'JetBrains Mono', monospace;"
+          data-astro-history="push"
+        >
+          <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span>cd ../code</span>
+        </a>
+        
+        {snippet.data.pubDate && (
+          <time 
+            class="text-xs text-gray-500 dark:text-gray-400" 
+            style="font-family: 'JetBrains Mono', monospace;"
+            datetime={snippet.data.pubDate.toISOString()}
+          >
+            {snippet.data.pubDate.toISOString().split('T')[0]}
+          </time>
+        )}
+      </div>
+    </nav>
+    
+    <article>
+      <!-- Header with terminal-style -->
+      <header class="mb-8">
+        <h1 class="text-2xl md:text-3xl font-light text-gray-900 dark:text-gray-100 mb-3 leading-tight" style="font-family: 'JetBrains Mono', monospace;">
+          {snippet.data.title || snippet.id}
+        </h1>
+        {snippet.data.description && (
+          <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3 opacity-90" style="font-family: 'Inter', sans-serif; font-weight: 300;">
+            {snippet.data.description}
+          </p>
+        )}
+        {snippet.data.tags && snippet.data.tags.length > 0 && (
+          <div class="flex flex-wrap gap-1.5">
+            {snippet.data.tags.map((tag: string) => (
+              <Tag text={tag} variant="code" />
+            ))}
+          </div>
+        )}
+      </header>
+      
+      <!-- Content with technical-focused typography -->
+      <div class="technical-content">
+        <Content />
+      </div>
+      
+    </article>
+  </div>
+</BaseLayout>

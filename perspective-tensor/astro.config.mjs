@@ -12,6 +12,17 @@ export default defineConfig({
   site: 'https://entropy-warrior.github.io',
   integrations: [react(), mdx()],
   
+  markdown: {
+    shikiConfig: {
+      themes: {
+        light: 'github-light',
+        dark: 'github-dark',
+      },
+      defaultColor: false,
+      wrap: true,
+    }
+  },
+  
   vite: {
     plugins: [tailwindcss()]
   }

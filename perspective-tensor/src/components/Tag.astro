@@ -1,0 +1,14 @@
+---
+interface Props {
+  text: string;
+}
+
+const { text } = Astro.props;
+
+// Centralized tag styling - consistent grayscale
+const baseClasses = "text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 rounded";
+---
+
+<span class={baseClasses}>
+  {text}
+</span>

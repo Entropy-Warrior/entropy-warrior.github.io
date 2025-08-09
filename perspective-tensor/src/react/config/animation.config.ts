@@ -52,7 +52,7 @@ export const ANIMATION_CONFIG = {
   viewport: {
     padding: 5,                 // Minimal canvas padding
     aspectRatio: 0.9,           // Further increased aspect ratio for maximum height
-    scaleMultiplier: 1.02,       // Global scale adjustment factor - increased to take advantage of edge fading
+    scaleMultiplier: 1.1,       // Global scale adjustment factor - increased to take advantage of edge fading
     boundsMargin: 1.05,         // Safety margin for bounds calculation (5%)
     minScale: 0.1,              // Minimum scale factor (10%)
     maxDevicePixelRatio: 2,     // Maximum device pixel ratio

@@ -1,107 +1,339 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import StructuredData from '../../components/StructuredData.astro';
+import Tag from '../../components/Tag.astro';
 import { getCollection } from 'astro:content';
 
-const posts = await getCollection('blog', ({ data }) => data.draft !== true);
+// Get all posts from all collections
+const blogPosts = await getCollection('blog', ({ data }) => data.draft !== true);
+const codePosts = await getCollection('code', ({ data }) => data.draft !== true);
+const growthPosts = await getCollection('growth', ({ data }) => data.draft !== true);
 
-// Sort posts by date (newest first)
-posts.sort((a, b) => {
+// Combine all posts
+const allPosts = [
+  ...blogPosts.map(post => ({ ...post, collection: 'blog', section: post.data.section || 'thoughts' })),
+  ...codePosts.map(post => ({ ...post, collection: 'code', section: post.data.section || 'code' })),
+  ...growthPosts.map(post => ({ ...post, collection: 'growth', section: post.data.section || 'growth' }))
+];
+
+// Sort by date (newest first)
+allPosts.sort((a, b) => {
   const dateA = a.data.pubDate || new Date(0);
   const dateB = b.data.pubDate || new Date(0);
   return dateB.getTime() - dateA.getTime();
 });
 
+// Extract all unique tags
+const allTags = new Set();
+allPosts.forEach(post => {
+  if (post.data.tags) {
+    post.data.tags.forEach(tag => allTags.add(tag));
+  }
+});
+
+// Structured data
 const blogData = {
   "@type": "Blog",
   name: "Perspective Tensor Blog",
-  description: "Thoughts on AI, machine learning, complexity theory, and data science",
+  description: "Exploring AI, machine learning, complexity, and human growth",
   url: "https://perspective-tensor.dev/blog",
   author: {
     "@type": "Person",
     name: "Lin Wang",
     url: "https://perspective-tensor.dev"
-  },
-  blogPosts: posts.map(post => ({
-    "@type": "BlogPosting",
-    headline: post.data.title || post.id,
-    description: post.data.description || '',
-    datePublished: post.data.pubDate?.toISOString(),
-    author: {
-      "@type": "Person",
-      name: post.data.author || "Lin Wang"
-    },
-    url: `https://perspective-tensor.dev/blog/${post.id}`
-  }))
+  }
 };
 ---
+
 <BaseLayout 
   title="Blog" 
-  description="Thoughts on AI, machine learning, complexity theory, and data science through a first principles lens."
+  description="Exploring AI, machine learning, complexity, and human growth through multiple perspectives."
 >
   <StructuredData type="Blog" data={blogData} />
   
-  <div class="max-w-3xl mx-auto px-4">
-    <!-- Back navigation -->
-    <div class="mb-12">
-      <a 
-        href="/"
-        class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-300 group"
-        data-astro-history="push"
-      >
-        <svg class="w-3.5 h-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
-        <span class="font-light">Home</span>
-      </a>
-    </div>
-    
-    <!-- Post list -->
-    <div class="space-y-2">
-      {posts.map((post) => (
-        <article>
-          <a 
-            href={`/blog/${post.id}`} 
-            class="block py-5 px-4 -mx-4 rounded-lg transition-all duration-500 ease-out hover:translate-x-1 hover:shadow-lg hover:shadow-gray-200/20 dark:hover:shadow-black/30 group"
-            data-astro-history="push"
-          >
-            <div class="flex items-start justify-between gap-6">
-              <div class="flex-1 min-w-0">
-                <h2 class="text-lg font-light text-gray-900 dark:text-gray-100 mb-1.5 leading-snug">
-                  {post.data.title ?? post.id}
-                </h2>
-                
-                {post.data.description && (
-                  <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed font-light line-clamp-2">
-                    {post.data.description}
-                  </p>
-                )}
-              </div>
-              
-              {post.data.pubDate && (
-                <time 
-                  class="text-xs text-gray-500 dark:text-gray-400 font-light whitespace-nowrap pt-0.5 min-w-[4rem] text-right" 
-                  datetime={post.data.pubDate.toISOString()}
-                >
-                  {post.data.pubDate.toLocaleDateString('en-US', { 
-                    month: 'short',
-                    day: 'numeric',
-                    year: post.data.pubDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-                  })}
-                </time>
-              )}
-            </div>
-          </a>
-        </article>
-      ))}
-    </div>
-    
-    {posts.length === 0 && (
-      <div class="text-center py-20">
-        <p class="text-gray-500 dark:text-gray-400 font-light">
-          No posts yet. Check back soon for insights and explorations.
-        </p>
+  <div class="mx-auto px-4">
+    <!-- Header -->
+    <header class="mb-12">
+      <div class="flex items-center gap-3 mb-4">
+        <a 
+          href="/"
+          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors font-light"
+          data-astro-history="push"
+        >
+          Home
+        </a>
+        <span class="text-gray-400 dark:text-gray-600">/</span>
+        <span class="text-sm text-gray-900 dark:text-gray-100 font-light">Blog</span>
       </div>
-    )}
+      
+      <h1 class="text-3xl font-light text-gray-900 dark:text-gray-100 mb-4">
+        Blog
+      </h1>
+      <p class="text-base text-gray-600 dark:text-gray-400 font-light max-w-2xl">
+        Exploring the intersection of machine intelligence, system design, and human complexity.
+      </p>
+    </header>
+    
+    <!-- Filters -->
+    <div class="mb-8 pb-8 border-b border-gray-200 dark:border-gray-700">
+      <!-- Section Filter -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button 
+          data-filter-section="all"
+          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+        >
+          All
+        </button>
+        <button 
+          data-filter-section="thoughts"
+          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+        >
+          Thoughts
+        </button>
+        <button 
+          data-filter-section="code"
+          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+        >
+          Code
+        </button>
+        <button 
+          data-filter-section="growth"
+          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+        >
+          Growth
+        </button>
+      </div>
+      
+      <!-- Tag Filter -->
+      <div class="flex flex-wrap gap-2">
+        <span class="text-xs text-gray-500 dark:text-gray-400 mr-2 self-center">Filter by tag:</span>
+        <button 
+          data-filter-tag="all"
+          class="filter-tag text-xs px-2 py-1 rounded transition-all duration-200 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+        >
+          All tags
+        </button>
+        {Array.from(allTags).sort().map(tag => (
+          <button 
+            data-filter-tag={tag}
+            class="filter-tag text-xs px-2 py-1 rounded transition-all duration-200 text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+    </div>
+    
+    <!-- Posts with stacked card effect -->
+    <div class="posts-stack relative" id="posts-container">
+      {allPosts.length === 0 ? (
+        <div class="text-center py-16">
+          <p class="text-gray-500 dark:text-gray-400 font-light mb-4">
+            No posts yet. Check back soon for insights and explorations.
+          </p>
+        </div>
+      ) : (
+        allPosts.map((post) => {
+          // Determine URL based on collection
+          const postUrl = post.collection === 'blog' ? `/blog/${post.id}` :
+                         post.collection === 'code' ? `/code/${post.id}` :
+                         `/growth/${post.id}`;
+          
+          // Different styles for different sections
+          const sectionStyles = {
+            thoughts: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
+            code: 'border-blue-200 dark:border-blue-900 hover:border-blue-300 dark:hover:border-blue-800',
+            growth: 'border-green-200 dark:border-green-900 hover:border-green-300 dark:hover:border-green-800'
+          };
+          
+          const borderStyle = sectionStyles[post.section] || sectionStyles.thoughts;
+          
+          return (
+            <article 
+              class="post-card"
+              data-section={post.section}
+              data-tags={post.data.tags?.join(',') || ''}
+            >
+              <a 
+                href={postUrl}
+                class="block px-6 pt-4 pb-5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm hover:shadow-lg transition-all duration-500 h-[180px] overflow-hidden flex flex-col relative"
+                data-astro-history="push"
+              >
+                <div class="flex-1 flex flex-col">
+                  <div class="mb-1.5">
+                    <span class="text-xs px-2 py-0.5 rounded font-light bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                      {post.section}
+                    </span>
+                  </div>
+                  <h2 class="text-xl font-light text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-2">
+                    {post.data.title || post.id}
+                  </h2>
+                  {post.data.description && (
+                    <p class="text-sm text-gray-600 dark:text-gray-400 font-light leading-relaxed line-clamp-2 mb-3">
+                      {post.data.description}
+                    </p>
+                  )}
+                </div>
+                
+                <div class="flex items-end justify-between">
+                  <div class="flex flex-wrap gap-1.5">
+                    {post.data.tags && post.data.tags.map((tag: string) => (
+                      <Tag text={tag} />
+                    ))}
+                  </div>
+                  {post.data.pubDate && (
+                    <time 
+                      class="text-xs text-gray-500 dark:text-gray-400 font-light ml-3 flex-shrink-0" 
+                      datetime={post.data.pubDate.toISOString()}
+                    >
+                      {post.data.pubDate.toLocaleDateString('en-US', { 
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </time>
+                  )}
+                </div>
+              </a>
+            </article>
+          );
+        })
+      )}
+    </div>
   </div>
+  
+  <style>
+    /* Elegant stacked cards */
+    .posts-stack {
+      position: relative;
+      min-height: 600px;
+      margin-top: 2rem;
+      padding-bottom: 2rem;
+    }
+    
+    .post-card {
+      position: absolute;
+      width: 100%;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      /* Dynamic positioning set via JS */
+    }
+    
+    /* Individual card hover - pull out elegantly */
+    .post-card:hover {
+      z-index: 50 !important;
+      transform: translateX(-20px) scale(1.02);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2);
+    }
+    
+    .dark .post-card:hover {
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    }
+    
+    
+    /* Smooth transition for hidden cards */
+    .post-card[style*="display: none"] {
+      transform: translateX(50px) scale(0.95);
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .post-card:hover {
+        transform: translateY(-10px) scale(1.01);
+      }
+    }
+  </style>
+  
+  <script>
+    // Filter functionality with stacked cards
+    document.addEventListener('DOMContentLoaded', () => {
+      const posts = document.querySelectorAll('.post-card');
+      const sectionButtons = document.querySelectorAll('.filter-section');
+      const tagButtons = document.querySelectorAll('.filter-tag');
+      const container = document.getElementById('posts-container');
+      
+      let currentSection = 'all';
+      let currentTag = 'all';
+      
+      function repositionCards() {
+        const visiblePosts = [];
+        
+        posts.forEach(post => {
+          const postSection = post.getAttribute('data-section');
+          const postTags = post.getAttribute('data-tags')?.split(',') || [];
+          
+          const sectionMatch = currentSection === 'all' || postSection === currentSection;
+          const tagMatch = currentTag === 'all' || postTags.includes(currentTag);
+          
+          if (sectionMatch && tagMatch) {
+            visiblePosts.push(post);
+            post.style.display = 'block';
+          } else {
+            post.style.display = 'none';
+          }
+        });
+        
+        // Calculate optimal overlap to show just the tags
+        // Card height is 180px (h-[180px]), we want to show approximately the bottom 50px (tags area)
+        const cardHeight = 180;
+        const tagAreaHeight = 50; // Height of the area we want to show (tags + some padding)
+        const overlap = tagAreaHeight;
+        
+        // Reposition visible cards with calculated overlap
+        visiblePosts.forEach((post, index) => {
+          post.style.top = `${index * overlap}px`;
+          post.style.zIndex = (30 - index).toString(); // Higher z-index for top cards
+        });
+        
+        // Update container height based on visible posts
+        const totalHeight = Math.max(600, (visiblePosts.length - 1) * overlap + cardHeight + 50);
+        container.style.minHeight = `${totalHeight}px`;
+      }
+      
+      // Initial positioning
+      repositionCards();
+      
+      // Section filter
+      sectionButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          currentSection = button.getAttribute('data-filter-section');
+          
+          // Update button styles
+          sectionButtons.forEach(btn => {
+            if (btn === button) {
+              btn.classList.add('bg-gray-900', 'text-white', 'dark:bg-gray-100', 'dark:text-gray-900');
+              btn.classList.remove('text-gray-600', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:text-gray-100');
+            } else {
+              btn.classList.remove('bg-gray-900', 'text-white', 'dark:bg-gray-100', 'dark:text-gray-900');
+              btn.classList.add('text-gray-600', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:text-gray-100');
+            }
+          });
+          
+          repositionCards();
+        });
+      });
+      
+      // Tag filter
+      tagButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          currentTag = button.getAttribute('data-filter-tag');
+          
+          // Update button styles
+          tagButtons.forEach(btn => {
+            if (btn === button) {
+              btn.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-gray-600', 'dark:text-gray-400');
+              btn.classList.remove('text-gray-500', 'dark:text-gray-500', 'hover:bg-gray-100', 'dark:hover:bg-gray-800');
+            } else {
+              btn.classList.remove('bg-gray-100', 'dark:bg-gray-800', 'text-gray-600', 'dark:text-gray-400');
+              btn.classList.add('text-gray-500', 'dark:text-gray-500', 'hover:bg-gray-100', 'dark:hover:bg-gray-800');
+            }
+          });
+          
+          repositionCards();
+        });
+      });
+    });
+  </script>
 </BaseLayout>

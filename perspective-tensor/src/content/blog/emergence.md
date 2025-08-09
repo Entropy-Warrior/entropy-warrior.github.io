@@ -3,6 +3,8 @@ title: "From Bird Flocks to Intelligence: The Power of Emergence"
 description: "Understanding how complex behaviors emerge from simple rules in nature and AI systems"
 pubDate: 2024-04-20
 draft: false
+tags: ["complexity", "ai", "first-principles"]
+section: "thoughts"
 author: "Lin Wang"
 ---
 

@@ -517,6 +517,7 @@ export default function StreamlinedAnimationCanvas() {
   const [currentEquation, setCurrentEquation] = useState<string>('');
   const [equationHtml, setEquationHtml] = useState<string>('');
   const [equationOpacity, setEquationOpacity] = useState<number>(0);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const animationRef = useRef<StreamlinedAnimation | null>(null);
 
   useEffect(() => {
@@ -534,6 +535,9 @@ export default function StreamlinedAnimationCanvas() {
     const animation = new StreamlinedAnimation();
     animationRef.current = animation;
     let rafId = 0;
+
+    // Set initial theme state
+    setIsDarkMode(document.documentElement.classList.contains('dark'));
 
     // Initialize first equation
     const initialState = animation.getCurrentState();
@@ -584,7 +588,9 @@ export default function StreamlinedAnimationCanvas() {
     const themeObserver = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          // Theme changed, force re-render to update colors
+          // Theme changed, update state and re-render
+          const isDark = document.documentElement.classList.contains('dark');
+          setIsDarkMode(isDark);
           if (!destroyed && animation) {
             animation.render(ctx, width, height);
           }
@@ -696,6 +702,9 @@ export default function StreamlinedAnimationCanvas() {
     };
   }, []);
 
+  // Use the theme state to determine background color
+  const bgColor = isDarkMode ? '17, 24, 39' : '255, 255, 255'; // rgb values for gray-900 and white
+  
   return (
     <div className="w-full relative">
       <canvas 
@@ -703,9 +712,9 @@ export default function StreamlinedAnimationCanvas() {
         className="block w-full" 
         aria-hidden="true"
       />
-      {/* Equation display centered on canvas with proper z-index */}
+      {/* Equation display centered on canvas */}
       <div 
-        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-10"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
         style={{
           opacity: equationOpacity, // Direct opacity control
           fontSize: 'clamp(0.625rem, 1.5vw, 0.875rem)', // Even smaller font
@@ -720,6 +729,26 @@ export default function StreamlinedAnimationCanvas() {
           }}
         />
       </div>
+      {/* Edge fading overlay - gentle start, aggressive at edges */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-20"
+        style={{
+          background: `radial-gradient(ellipse at center, 
+            transparent 0%,
+            transparent 50%,
+            rgba(${bgColor}, 0.05) 60%,
+            rgba(${bgColor}, 0.1) 65%,
+            rgba(${bgColor}, 0.2) 70%,
+            rgba(${bgColor}, 0.4) 75%,
+            rgba(${bgColor}, 0.6) 80%,
+            rgba(${bgColor}, 0.8) 85%,
+            rgba(${bgColor}, 0.95) 90%,
+            rgba(${bgColor}, 1) 93%,
+            rgb(${bgColor}) 95%,
+            rgb(${bgColor}) 100%
+          )`
+        }}
+      />
     </div>
   );
 }
