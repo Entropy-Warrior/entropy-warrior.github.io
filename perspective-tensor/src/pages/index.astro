@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StructuredData from '../components/StructuredData.astro';
-import StreamlinedAnimationCanvas from '../react/StreamlinedAnimationCanvas.tsx';
+import AnimationCanvas from '../react/components/AnimationCanvas.tsx';
 import { getCollection } from 'astro:content';
 
 const posts = await getCollection('blog', ({ data }) => data.draft !== true);
@@ -32,7 +32,7 @@ const websiteData = {
 <BaseLayout title="Home">
   <StructuredData type="WebSite" data={websiteData} />
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] w-full max-w-3xl mx-auto px-4 gap-6">
-    <StreamlinedAnimationCanvas client:load />
+    <AnimationCanvas client:load />
     <p class="text-lg md:text-xl text-gray-700 dark:text-gray-200 leading-relaxed font-light tracking-wide text-center">
       Finding patterns in chaos, where simple rules create profound complexity.
     </p>

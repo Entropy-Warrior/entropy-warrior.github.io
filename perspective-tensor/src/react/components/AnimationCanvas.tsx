@@ -1,75 +1,34 @@
 import { useEffect, useRef } from 'react';
 import {
   lerpVec3,
-  type Vec3
-} from './utils/mathUtils';
-import {
+  type Vec3,
+  slerpVec3,
+  createRotationMatrix,
+  multiplyMatrices,
+  applyMatrixToVector,
+  getPerpendicularAxis,
+  easeInOutQuart,
+  randomNormal,
+  type Matrix3x3,
   createBrownianOffsets,
   updateBrownianMotion,
   setupCanvas,
   getRenderColors,
-  type BrownianOffsets
-} from './utils/canvasUtils';
-import {
+  type BrownianOffsets,
   type Layout,
   type Bounds
-} from './utils/layoutUtils';
-import { 
-  generateMathTensorLayout,
-  generateMathGraphLayout,
-  generateMathHelixLayout,
-  generateMathWormholeLayout,
-  generateMathTorusKnotLayout,
-  generateMathSphericalLayout,
-  generateMathHypercubeLayout
-} from './layouts/mathematicalLayouts';
+} from '../utils';
+import { LAYOUT_STATES, LAYOUT_GENERATORS, type LayoutState } from '../layouts';
+import { ANIMATION_CONFIG as CFG } from '../config';
 
 // ═══════════════════════════════════════════════════════════════
-// CORE TYPES & CONFIGURATION (Based on SimplifiedNetworkCanvas)
+// CORE TYPES & CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
 
-// Configuration - simplified for mathematical layouts
-const CFG = {
-  // Animation timing
-  timing: { 
-    pauseMs: 2000,      // Pause duration between morphs
-    morphMs: 6000       // Morph animation duration
-  },
+const N = CFG.particles.count; // Use count from config
 
-  // Line rendering
-  line: { 
-    brightness: 0.8,            // Base line brightness
-    baseAlpha: { dark: 0.3, light: 0.25 },      // Base transparency
-    distanceBoost: { dark: 0.3, light: 0.25 },  // Extra alpha for long lines
-    maxAlpha: { dark: 0.6, light: 0.5 },        // Maximum line opacity
-    thickness: 0.5              // Line thickness
-  },
-  
-  // Brownian motion
-  brownian: { 
-    amplitude: 1.5,           // Motion amplitude
-    speed: 0.008,               // Motion speed (reduced by 50%)
-    damping: 0.997,             // Motion damping (increased for smoother motion)
-    delayMs: 600,               // Delay before starting
-    rampMs: 500                 // Ramp-up duration
-  },
-  
-  // Particle rendering
-  particle: {
-    radius: 2,                  // Particle radius
-  },
-  
-  // Viewport
-  viewport: {
-    padding: 5,                 // Minimal canvas padding
-    aspectRatio: 0.9            // Further increased aspect ratio for maximum height
-  }
-};
-
-const N = 729; // 9^3 dots for all states
-
-// Data types
-enum State { Tensor, Morph1, Graph, Morph2, Wormhole, Morph3, TorusKnot, Spherical, Hypercube }
+// Use imported types
+type State = LayoutState;
 
 interface Machine {
   state: State;
@@ -87,16 +46,8 @@ interface Line {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// LAYOUT GENERATORS (From SimplifiedNetworkCanvas)
-// ═══════════════════════════════════════════════════════════════
-
-
-// ═══════════════════════════════════════════════════════════════
 // STREAMLINED ANIMATION ENGINE
 // ═══════════════════════════════════════════════════════════════
-
-const easeInOutQuart = (t: number): number => 
-  t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
 
 
 const getLineAlpha = (line: Line, distance: number, isDark: boolean): number => {
@@ -104,7 +55,7 @@ const getLineAlpha = (line: Line, distance: number, isDark: boolean): number => 
   const boost = isDark ? CFG.line.distanceBoost.dark : CFG.line.distanceBoost.light;
   const max = isDark ? CFG.line.maxAlpha.dark : CFG.line.maxAlpha.light;
   
-  const distFactor = Math.min(distance / 3.0, 1.0);
+  const distFactor = Math.min(distance / CFG.line.distanceThreshold, 1.0);
   return Math.min((base + distFactor * boost) * line.strength, max);
 };
 
@@ -116,8 +67,8 @@ function calculateOptimalScale(bounds: Bounds, viewportWidth: number, viewportHe
   
   // For 2D projection, assume width is the effective dimension
   // Add minimal margin since layouts are maximized
-  const effectiveWidth = boundsWidth * 1.05; // Just 5% margin for safety
-  const effectiveHeight = boundsHeight * 1.05;
+  const effectiveWidth = boundsWidth * CFG.viewport.boundsMargin; // Just 5% margin for safety
+  const effectiveHeight = boundsHeight * CFG.viewport.boundsMargin;
   
   // Available space after padding
   const availableWidth = viewportWidth - (2 * padding);
@@ -130,7 +81,7 @@ function calculateOptimalScale(bounds: Bounds, viewportWidth: number, viewportHe
   // Use the minimum scale to ensure everything fits
   const scale = Math.min(scaleX, scaleY);
   
-  return Math.max(scale, 0.1); // Allow scaling down to 10% for small windows
+  return Math.max(scale, CFG.viewport.minScale); // Allow scaling down to minimum for small windows
 }
 
 class StreamlinedAnimation {
@@ -145,15 +96,14 @@ class StreamlinedAnimation {
   private particleSizes: number[] = []; // Random sizes for each particle
   // Rotation state - simplified with a single rotation config object
   private rotation = {
-    matrix: [[1,0,0],[0,1,0],[0,0,1]] as number[][],
+    matrix: [[1,0,0],[0,1,0],[0,0,1]] as Matrix3x3,
     current: { axis: [0, 1, 0] as Vec3, speed: 1 },
     target: { axis: [0, 1, 0] as Vec3, speed: 1 },
     future: { axis: [0, 1, 0] as Vec3, speed: 1 },
     transitionProgress: 1,
     cycleCount: 0
   };
-  private stateHistory: State[] = []; // Track last few states to avoid repetition
-  private stateSequence: State[] = []; // Pre-generated randomized sequence
+  private previousState: State | null = null; // Track previous state to avoid repetition
 
   constructor() {
     // Generate all 4 states with slight viewing angle randomness
@@ -171,7 +121,7 @@ class StreamlinedAnimation {
     
     // Initialize with random states
     const firstState = this.getNextRandomState();
-    this.stateHistory.push(firstState);
+    this.previousState = firstState;
     const secondState = this.getNextRandomState();
     
     this.machine = {
@@ -187,84 +137,47 @@ class StreamlinedAnimation {
     this.initializeAllLines();
   }
 
-  // Layout generator mapping for cleaner code
-  private readonly layoutGenerators: Record<State, () => Layout> = {
-    [State.Tensor]: generateMathTensorLayout,
-    [State.Morph1]: () => generateMathHelixLayout(0), // Flat disk galaxy
-    [State.Graph]: generateMathGraphLayout,
-    [State.Morph2]: () => generateMathHelixLayout(1), // Möbius ribbon
-    [State.Wormhole]: generateMathWormholeLayout,
-    [State.Morph3]: () => generateMathHelixLayout(2), // DNA double helix
-    [State.TorusKnot]: generateMathTorusKnotLayout,
-    [State.Spherical]: generateMathSphericalLayout,
-    [State.Hypercube]: generateMathHypercubeLayout
-  };
+  // Use imported layout generators
+  private readonly layoutGenerators = LAYOUT_GENERATORS;
 
   private generateLayouts(): void {
     // Generate all layouts using the mapping
-    for (const value of Object.values(State)) {
-      if (typeof value === 'number') {
-        const state = value as State;
-        this.layouts[state] = this.layoutGenerators[state]();
-        this.stateBounds[state] = this.layouts[state].bounds;
-      }
+    for (const state of LAYOUT_STATES) {
+      this.layouts[state] = this.layoutGenerators[state]();
+      this.stateBounds[state] = this.layouts[state].bounds;
     }
   }
   
   private generateParticleSizes(): number[] {
-    // Box-Muller transform for normal distribution
+    // Generate normally distributed particle sizes
     const sizes: number[] = [];
     for (let i = 0; i < N; i++) {
-      let u = 0, v = 0;
-      while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
-      while (v === 0) v = Math.random();
-      
-      // Box-Muller transform for normal distribution
-      const normal = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-      
-      // Scale to mean=1.5, stddev=0.5, then clamp to [0.5, 3]
-      const size = Math.max(0.5, Math.min(3, 1.5 + normal * 0.5));
+      const size = Math.max(
+        CFG.particles.size.min, 
+        Math.min(
+          CFG.particles.size.max, 
+          randomNormal(CFG.particles.size.mean, CFG.particles.size.stddev)
+        )
+      );
       sizes.push(size);
     }
     return sizes;
   }
   
   private getNextRandomState(): State {
-    // Get all possible states (now 9 states!)
-    const allStates = [
-      State.Tensor, State.Morph1, State.Graph, State.Morph2, 
-      State.Wormhole, State.Morph3, State.TorusKnot, State.Spherical, State.Hypercube
-    ];
+    // Filter out the previous state to avoid immediate repetition
+    const availableStates = this.previousState !== null 
+      ? LAYOUT_STATES.filter(s => s !== this.previousState)
+      : [...LAYOUT_STATES];
     
-    // Filter out states that appeared in the last 2 steps (avoid repetition within 3 steps)
-    const recentStates = this.stateHistory.slice(-2);
-    const availableStates = allStates.filter(s => !recentStates.includes(s));
-    
-    // If somehow all states are excluded (shouldn't happen with 9 states), fallback
-    if (availableStates.length === 0) {
-      return allStates[Math.floor(Math.random() * allStates.length)];
-    }
-    
-    // Weighted selection - hypercube appears 3x more often
-    const weightedStates: State[] = [];
-    availableStates.forEach(state => {
-      if (state === State.Hypercube) {
-        // Add hypercube 3 times to make it appear more frequently
-        weightedStates.push(state, state, state);
-      } else {
-        weightedStates.push(state);
-      }
-    });
-    
-    // Pick a random state from weighted available ones
-    return weightedStates[Math.floor(Math.random() * weightedStates.length)];
+    // Pick a random state from available ones
+    return availableStates[Math.floor(Math.random() * availableStates.length)];
   }
   
   updateUnifiedScale(width: number, height: number): void {
     // Calculate a single scale that works for all states (use the most conservative)
-    const scales = Object.values(State)
-      .filter(s => typeof s === 'number')
-      .map(s => calculateOptimalScale(this.stateBounds[s as State], width, height, CFG.viewport.padding));
+    const scales = LAYOUT_STATES
+      .map(s => calculateOptimalScale(this.stateBounds[s], width, height, CFG.viewport.padding));
     this.unifiedScale = Math.min(...scales);
   }
 
@@ -303,7 +216,7 @@ class StreamlinedAnimation {
       const t = easeInOutQuart(this.rotation.transitionProgress);
       
       // Slerp between current and target axis
-      this.rotation.current.axis = this.slerpVec3(
+      this.rotation.current.axis = slerpVec3(
         this.rotation.current.axis, 
         this.rotation.target.axis, 
         t
@@ -315,68 +228,15 @@ class StreamlinedAnimation {
     }
 
     // Apply incremental rotation
-    const baseRotationSpeed = Math.PI / 20000;
-    const deltaAngle = this.rotation.current.speed * baseRotationSpeed * 16.67;
+    const baseRotationSpeed = CFG.rotation.baseSpeed;
+    const deltaAngle = this.rotation.current.speed * baseRotationSpeed * CFG.rotation.deltaTime;
     
     if (Math.abs(deltaAngle) > 0.0001) {
-      this.rotation.matrix = this.multiplyRotationMatrix(
+      this.rotation.matrix = multiplyMatrices(
         this.rotation.matrix,
-        this.createRotationMatrix(this.rotation.current.axis, deltaAngle)
+        createRotationMatrix(this.rotation.current.axis, deltaAngle)
       );
     }
-  }
-
-  private slerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
-    const dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    
-    if (Math.abs(dot) > 0.9999) {
-      return [...b];
-    }
-    
-    const theta = Math.acos(Math.max(-1, Math.min(1, dot)));
-    const sinTheta = Math.sin(theta);
-    
-    if (Math.abs(sinTheta) < 0.001) {
-      return [...b];
-    }
-    
-    const wa = Math.sin((1 - t) * theta) / sinTheta;
-    const wb = Math.sin(t * theta) / sinTheta;
-    
-    const result: Vec3 = [
-      wa * a[0] + wb * b[0],
-      wa * a[1] + wb * b[1],
-      wa * a[2] + wb * b[2]
-    ];
-    
-    // Normalize
-    const len = Math.sqrt(result[0]**2 + result[1]**2 + result[2]**2);
-    return len > 0 ? [result[0]/len, result[1]/len, result[2]/len] : result;
-  }
-
-  private createRotationMatrix(axis: Vec3, angle: number): number[][] {
-    const [ax, ay, az] = axis;
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
-    const t = 1 - c;
-    
-    return [
-      [c + ax*ax*t, ax*ay*t - az*s, ax*az*t + ay*s],
-      [ay*ax*t + az*s, c + ay*ay*t, ay*az*t - ax*s],
-      [az*ax*t - ay*s, az*ay*t + ax*s, c + az*az*t]
-    ];
-  }
-
-  private multiplyRotationMatrix(a: number[][], b: number[][]): number[][] {
-    const result = [[0,0,0],[0,0,0],[0,0,0]];
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        for (let k = 0; k < 3; k++) {
-          result[i][j] += a[i][k] * b[k][j];
-        }
-      }
-    }
-    return result;
   }
 
   update(time: number): void {
@@ -414,30 +274,13 @@ class StreamlinedAnimation {
         this.machine.state = this.machine.next;
         
         // Add current state to history and get next random state
-        this.stateHistory.push(this.machine.state);
-        // Keep only last 3 states in history
-        if (this.stateHistory.length > 3) {
-          this.stateHistory.shift();
-        }
+        // State transition complete
+        // Update previous state
+        this.previousState = this.machine.state;
         this.machine.next = this.getNextRandomState();
         
         // Update rotation cycles
         this.updateRotationCycle();
-        
-        // Regenerate layouts that haven't been used recently
-        // Find states that are not in current, next, or recent history
-        const allStates = [
-          State.Tensor, State.Morph1, State.Graph, State.Morph2, 
-          State.Wormhole, State.Morph3, State.TorusKnot, State.Spherical, State.Hypercube
-        ];
-        const recentlyUsed = new Set([this.machine.state, this.machine.next, ...this.stateHistory.slice(-2)]);
-        const statesToRegenerate = allStates.filter(s => !recentlyUsed.has(s));
-        
-        // Regenerate layouts for states that haven't been used recently
-        statesToRegenerate.forEach(state => {
-          this.layouts[state] = this.layoutGenerators[state]();
-          this.stateBounds[state] = this.layouts[state].bounds;
-        });
         
         // State already updated above, just reset phase
         this.machine.phase = 'pause';
@@ -468,47 +311,19 @@ class StreamlinedAnimation {
 
   private generateNewRotation(currentAxis: Vec3): { axis: Vec3, speed: number } {
     // Generate perpendicular axis for rotation
-    const perpAxis = this.getPerpendicularAxis(currentAxis);
+    const perpAxis = getPerpendicularAxis(currentAxis);
     
     // Random perturbation angle (45-135 degrees)
     const perturbAngle = Math.PI / 4 + Math.random() * Math.PI / 2;
     
     // Rotate current axis around perpendicular by perturbAngle
-    const rotMatrix = this.createRotationMatrix(perpAxis, perturbAngle);
-    const newAxis = this.applyRotationToVector(currentAxis, rotMatrix, true); // Normalize for axis
+    const rotMatrix = createRotationMatrix(perpAxis, perturbAngle);
+    const newAxis = applyMatrixToVector(currentAxis, rotMatrix, true); // Normalize for axis
     
     // Small speed variation (0.9x to 1.1x)
-    const speed = 0.9 + Math.random() * 0.2;
+    const speed = CFG.rotation.speedMin + Math.random() * CFG.rotation.speedVariation;
     
     return { axis: newAxis, speed };
-  }
-
-  private getPerpendicularAxis(axis: Vec3): Vec3 {
-    let perpAxis: Vec3;
-    if (Math.abs(axis[2]) < 0.9) {
-      perpAxis = [-axis[1], axis[0], 0];
-    } else {
-      perpAxis = [0, -axis[2], axis[1]];
-    }
-    
-    // Normalize
-    const len = Math.sqrt(perpAxis[0]**2 + perpAxis[1]**2 + perpAxis[2]**2);
-    return len > 0 ? [perpAxis[0]/len, perpAxis[1]/len, perpAxis[2]/len] : perpAxis;
-  }
-
-  private applyRotationToVector(vec: Vec3, matrix: number[][], normalize: boolean = false): Vec3 {
-    const result: Vec3 = [0, 0, 0];
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        result[i] += matrix[i][j] * vec[j];
-      }
-    }
-    if (normalize) {
-      // Only normalize when needed (for axis vectors)
-      const len = Math.sqrt(result[0]**2 + result[1]**2 + result[2]**2);
-      return len > 0 ? [result[0]/len, result[1]/len, result[2]/len] : result;
-    }
-    return result;
   }
 
   private updateLines(): void {
@@ -564,7 +379,7 @@ class StreamlinedAnimation {
     const easedT = isMorphing ? easeInOutQuart(this.machine.t) : 0;
     
     // Use the unified scale for all states (no snapping)
-    const scale = this.unifiedScale * 1;
+    const scale = this.unifiedScale * CFG.viewport.scaleMultiplier;
 
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
@@ -588,7 +403,7 @@ class StreamlinedAnimation {
       }
       
       // Apply accumulated rotation matrix
-      particlePositions[particleIdx] = this.applyRotationToVector(pos, this.rotation.matrix);
+      particlePositions[particleIdx] = applyMatrixToVector(pos, this.rotation.matrix);
     }
 
     // Draw lines connecting the actual particles (with brownian motion)
@@ -604,7 +419,7 @@ class StreamlinedAnimation {
       // During morph or steady state, find particles at the line endpoints
       if (isMorphing) {
         // During first half of morph, use current mapping; second half use target
-        const mapping = this.machine.t < 0.5 ? this.particleMapping : this.targetMapping;
+        const mapping = this.machine.t < CFG.line.fadeTransitionPoint ? this.particleMapping : this.targetMapping;
         for (let i = 0; i < N; i++) {
           if (mapping[i] === line.a) particleA = i;
           if (mapping[i] === line.b) particleB = i;
@@ -686,7 +501,7 @@ export default function StreamlinedAnimationCanvas() {
     let destroyed = false;
     let width = 0;
     let height = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, CFG.viewport.maxDevicePixelRatio);
 
     const animation = new StreamlinedAnimation();
     let rafId = 0;
@@ -708,8 +523,8 @@ export default function StreamlinedAnimationCanvas() {
       // Calculate height based on viewport, leaving room for header, footer, and text
       const viewportHeight = window.innerHeight;
       // Reserve less space to give the plot more room at the top
-      const reservedHeight = 200; // Reduced from 288
-      const maxCanvasHeight = Math.max(viewportHeight - reservedHeight, 400); // Increased minimum height
+      const reservedHeight = CFG.viewport.reservedHeight;
+      const maxCanvasHeight = Math.max(viewportHeight - reservedHeight, CFG.viewport.minHeight);
       
       // Use the smaller of: aspect-ratio-based height or max available height
       const aspectHeight = Math.round(parentWidth * CFG.viewport.aspectRatio);

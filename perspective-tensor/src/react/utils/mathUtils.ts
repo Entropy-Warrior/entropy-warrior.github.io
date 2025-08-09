@@ -77,3 +77,113 @@ export function generateRandomRotation(): { x: number; y: number } {
     y: randomInRange(minY, maxY),
   };
 }
+
+// Vector operations
+export function normalizeVec3(vec: Vec3): Vec3 {
+  const len = Math.sqrt(vec[0]**2 + vec[1]**2 + vec[2]**2);
+  return len > 0 ? [vec[0]/len, vec[1]/len, vec[2]/len] : vec;
+}
+
+export function dotProduct(a: Vec3, b: Vec3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+export function crossProduct(a: Vec3, b: Vec3): Vec3 {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0]
+  ];
+}
+
+// Spherical linear interpolation for 3D vectors
+export function slerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
+  const dot = dotProduct(a, b);
+  
+  if (Math.abs(dot) > 0.9999) {
+    return [...b];
+  }
+  
+  const theta = Math.acos(Math.max(-1, Math.min(1, dot)));
+  const sinTheta = Math.sin(theta);
+  
+  if (Math.abs(sinTheta) < 0.001) {
+    return [...b];
+  }
+  
+  const wa = Math.sin((1 - t) * theta) / sinTheta;
+  const wb = Math.sin(t * theta) / sinTheta;
+  
+  const result: Vec3 = [
+    wa * a[0] + wb * b[0],
+    wa * a[1] + wb * b[1],
+    wa * a[2] + wb * b[2]
+  ];
+  
+  return normalizeVec3(result);
+}
+
+// Matrix operations
+export type Matrix3x3 = number[][];
+
+export function createRotationMatrix(axis: Vec3, angle: number): Matrix3x3 {
+  const [ax, ay, az] = axis;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const t = 1 - c;
+  
+  return [
+    [c + ax*ax*t, ax*ay*t - az*s, ax*az*t + ay*s],
+    [ay*ax*t + az*s, c + ay*ay*t, ay*az*t - ax*s],
+    [az*ax*t - ay*s, az*ay*t + ax*s, c + az*az*t]
+  ];
+}
+
+export function multiplyMatrices(a: Matrix3x3, b: Matrix3x3): Matrix3x3 {
+  const result = [[0,0,0],[0,0,0],[0,0,0]];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      for (let k = 0; k < 3; k++) {
+        result[i][j] += a[i][k] * b[k][j];
+      }
+    }
+  }
+  return result;
+}
+
+export function applyMatrixToVector(vec: Vec3, matrix: Matrix3x3, normalize: boolean = false): Vec3 {
+  const result: Vec3 = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      result[i] += matrix[i][j] * vec[j];
+    }
+  }
+  return normalize ? normalizeVec3(result) : result;
+}
+
+// Get a perpendicular axis to the given axis
+export function getPerpendicularAxis(axis: Vec3): Vec3 {
+  let perpAxis: Vec3;
+  if (Math.abs(axis[2]) < 0.9) {
+    perpAxis = [-axis[1], axis[0], 0];
+  } else {
+    perpAxis = [0, -axis[2], axis[1]];
+  }
+  
+  return normalizeVec3(perpAxis);
+}
+
+// Easing functions
+export function easeInOutQuart(t: number): number {
+  return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+}
+
+// Random normal distribution (Box-Muller transform)
+export function randomNormal(mean: number = 0, stddev: number = 1): number {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+  while (v === 0) v = Math.random();
+  
+  const normal = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return mean + normal * stddev;
+}

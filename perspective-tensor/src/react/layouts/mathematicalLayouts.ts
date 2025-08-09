@@ -242,6 +242,81 @@ const morphHelix = (ε: () => number): Vec3[] => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// Edge generation functions for different topologies
+// ═══════════════════════════════════════════════════════════════
+
+// Generate edges for disk topology (spiral galaxy with arms)
+const generateDiskEdges = (): [number, number][] => {
+  const edges: [number, number][] = [];
+  
+  // Main spiral
+  for (let i = 0; i < N - 1; i++) {
+    edges.push([i, i + 1]);
+  }
+  
+  // Add radial connections to create spiral arm structure
+  const armsCount = 3; // Number of spiral arms
+  const pointsPerArm = Math.floor(N / armsCount);
+  
+  for (let arm = 0; arm < armsCount; arm++) {
+    const armStart = arm * pointsPerArm;
+    for (let i = 0; i < pointsPerArm - 20; i += 20) {
+      // Connect points along the arm radius
+      if (armStart + i + 20 < N) {
+        edges.push([armStart + i, armStart + i + 20]);
+      }
+    }
+  }
+  
+  return edges;
+};
+
+// Generate edges for ribbon topology (grid pattern with Möbius closure)
+const generateRibbonEdges = (): [number, number][] => {
+  const edges: [number, number][] = [];
+  const W = 27;
+  const loops = Math.floor(N / W);
+  
+  for (let i = 0; i < N; i++) {
+    const strip = i % W;
+    const loop = Math.floor(i / W);
+    
+    // Along width (connect strips)
+    if (strip < W - 1) edges.push([i, i + 1]);
+    
+    // Along length (connect loops)
+    if (loop < loops - 1) {
+      edges.push([i, i + W]);
+    } else {
+      // Connect last loop to first loop with twist (Möbius closure)
+      const targetStrip = W - 1 - strip; // Flip across width for twist
+      const targetIdx = targetStrip;
+      if (targetIdx < N) edges.push([i, targetIdx]);
+    }
+  }
+  
+  return edges;
+};
+
+// Generate edges for helix topology (two separate continuous strands)
+const generateHelixEdges = (): [number, number][] => {
+  const edges: [number, number][] = [];
+  const n = Math.floor(N / 2);
+  
+  // Strand 1 backbone
+  for (let i = 0; i < n - 1; i++) {
+    edges.push([i, i + 1]);
+  }
+  
+  // Strand 2 backbone
+  for (let i = n; i < 2 * n - 1 && i < N - 1; i++) {
+    edges.push([i, i + 1]);
+  }
+  
+  return edges;
+};
+
+// ═══════════════════════════════════════════════════════════════
 // MORPH: Select topology based on variant
 // ═══════════════════════════════════════════════════════════════
 export const generateMathHelixLayout = (variant?: number): Layout => {
@@ -251,58 +326,8 @@ export const generateMathHelixLayout = (variant?: number): Layout => {
   // Generate positions based on variant
   const positions = v === 0 ? morphDisk(ε) : v === 1 ? morphRibbon(ε) : morphHelix(ε);
   
-  // Edge patterns specific to each topology
-  const edges: [number, number][] = [];
-  
-  if (v === 0) { // Disk: spiral galaxy with arms
-    // Main spiral
-    for (let i = 0; i < N - 1; i++) {
-      edges.push([i, i + 1]);
-    }
-    
-    // Add radial connections to create spiral arm structure
-    const armsCount = 3; // Number of spiral arms
-    const pointsPerArm = Math.floor(N / armsCount);
-    
-    for (let arm = 0; arm < armsCount; arm++) {
-      const armStart = arm * pointsPerArm;
-      for (let i = 0; i < pointsPerArm - 20; i += 20) {
-        // Connect points along the arm radius
-        if (armStart + i + 20 < N) {
-          edges.push([armStart + i, armStart + i + 20]);
-        }
-      }
-    }
-  } else if (v === 1) { // Ribbon: grid pattern with Möbius closure
-    const W = 27;
-    const loops = Math.floor(N / W);
-    
-    for (let i = 0; i < N; i++) {
-      const strip = i % W;
-      const loop = Math.floor(i / W);
-      
-      // Along width (connect strips)
-      if (strip < W - 1) edges.push([i, i + 1]);
-      
-      // Along length (connect loops)
-      if (loop < loops - 1) {
-        edges.push([i, i + W]);
-      } else {
-        // Connect last loop to first loop with twist (Möbius closure)
-        const targetStrip = W - 1 - strip; // Flip across width for twist
-        const targetIdx = targetStrip;
-        if (targetIdx < N) edges.push([i, targetIdx]);
-      }
-    }
-  } else { // Helix: two separate continuous strands
-    const n = Math.floor(N / 2);
-    for (let i = 0; i < n - 1; i++) {
-      edges.push([i, i + 1]); // Strand 1 backbone
-    }
-    for (let i = n; i < 2 * n - 1 && i < N - 1; i++) {
-      edges.push([i, i + 1]); // Strand 2 backbone
-    }
-  }
+  // Generate edges based on variant
+  const edges = v === 0 ? generateDiskEdges() : v === 1 ? generateRibbonEdges() : generateHelixEdges();
   
   return makeLayout(positions, edges);
 };
