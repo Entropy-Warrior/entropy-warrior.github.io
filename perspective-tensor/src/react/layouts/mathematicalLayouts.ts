@@ -45,9 +45,9 @@ export const generateMathTensorLayout = (): Layout => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// GRAPH: Golden ratio clusters with Fibonacci sphere distribution
+// GRAPH: Golden ratio clusters with randomized 3D positions
 // φ(i,c) = R_c·S(i/n_c)·e^(iφ) + C_c + ε
-// Centers follow Fibonacci sphere, points spiral with golden ratio
+// Centers randomly distributed in 3D space for variety
 // ═══════════════════════════════════════════════════════════════
 export const generateMathGraphLayout = (): Layout => {
   const φ = (1 + Math.sqrt(5)) / 2, C = 7, ε = noise(0.3);
@@ -61,33 +61,57 @@ export const generateMathGraphLayout = (): Layout => {
     const size = c === C - 1 ? N - positions.length : n;
     const start = positions.length;
     
-    // Cluster center on Fibonacci sphere
-    const θc = 2 * Math.PI * c * φ;
-    const yc = 1 - 2 * c / (C - 1);
-    const rc = Math.sqrt(1 - yc * yc) * 8;
-    const center: Vec3 = [rc * Math.cos(θc), yc * 8, rc * Math.sin(θc)];
+    // Random cluster center in 3D space (instead of Fibonacci sphere)
+    const θc = Math.random() * 2 * Math.PI;
+    const φc = Math.acos(2 * Math.random() - 1); // Random latitude
+    const rc = 6 + Math.random() * 4; // Random radius between 6-10
+    const center: Vec3 = [
+      rc * Math.sin(φc) * Math.cos(θc),
+      rc * Math.sin(φc) * Math.sin(θc),
+      rc * Math.cos(φc)
+    ];
     
-    // Generate cluster points and accumulate centroid
-    let centroid: Vec3 = [0, 0, 0];
+    // Generate cluster points in a spherical distribution for true centroid
+    const clusterPoints: Vec3[] = [];
     for (let i = 0; i < size; i++) {
-      const t = i / size;
-      const θ = 2 * Math.PI * i * φ;
-      const r = 3 * Math.sqrt(t);
+      // Use Fibonacci sphere for even distribution within cluster
+      const t = i / (size - 1);
+      const inclination = Math.acos(1 - 2 * t);
+      const azimuth = 2 * Math.PI * i * φ;
+      const radius = 3 * (0.5 + 0.5 * Math.random()); // Vary radius for volume
       
       const p: Vec3 = [
-        center[0] + r * Math.cos(θ) + ε(),
-        center[1] + (2 * t - 1) * 2 + ε(),
-        center[2] + r * Math.sin(θ) + ε()
+        center[0] + radius * Math.sin(inclination) * Math.cos(azimuth) + ε(),
+        center[1] + radius * Math.cos(inclination) + ε(),
+        center[2] + radius * Math.sin(inclination) * Math.sin(azimuth) + ε()
       ];
       positions.push(p);
-      centroid = [centroid[0] + p[0], centroid[1] + p[1], centroid[2] + p[2]];
+      clusterPoints.push(p);
     }
     
-    // Find hub: closest to centroid
-    centroid = [centroid[0]/size, centroid[1]/size, centroid[2]/size];
-    hubs.push(start + positions.slice(start, start + size)
-      .map((p, i) => ({ i, d: Math.hypot(p[0]-centroid[0], p[1]-centroid[1], p[2]-centroid[2]) }))
-      .reduce((min, curr) => curr.d < min.d ? curr : min).i);
+    // Calculate true 3D centroid: sum all coordinates then divide by count
+    const sum = clusterPoints.reduce(
+      (acc, p) => [acc[0] + p[0], acc[1] + p[1], acc[2] + p[2]],
+      [0, 0, 0]
+    );
+    const centroid: Vec3 = [sum[0] / size, sum[1] / size, sum[2] / size];
+    
+    // Find the point closest to the centroid
+    let minDist = Infinity;
+    let hubIdx = start;
+    for (let i = 0; i < clusterPoints.length; i++) {
+      const p = clusterPoints[i];
+      const dist = Math.sqrt(
+        (p[0] - centroid[0]) ** 2 + 
+        (p[1] - centroid[1]) ** 2 + 
+        (p[2] - centroid[2]) ** 2
+      );
+      if (dist < minDist) {
+        minDist = dist;
+        hubIdx = start + i;
+      }
+    }
+    hubs.push(hubIdx);
   }
   
   // Hub-spoke edges with cycle
@@ -108,94 +132,226 @@ export const generateMathGraphLayout = (): Layout => {
 
 
 // ═══════════════════════════════════════════════════════════════
-// MORPH: Unified parametric surface with smooth topology transitions
-// Ψ(t,λ) = R(t,λ)·e^(iθ(t,λ)) + Z(t,λ)·k̂
-// λ ∈ [0,1]: morphs from flat disk → twisted ribbon → double helix
+// MORPH DISK: Flat spiral galaxy with random gap gradient
+// Ψ₁(t) = √t·R·e^(iωt) + ε·z·k̂
 // ═══════════════════════════════════════════════════════════════
-export const generateMathHelixLayout = (variant?: number): Layout => {
-  const Λ = [0.1, 0.4, 0.7, 0.95];
-  const λ = variant !== undefined ? Λ[variant] : Math.random();
-  const ε = noise(0.1);
+const morphDisk = (ε: () => number): Vec3[] => {
+  const spiralTightness = 8 + Math.random() * 8; // Random between 8-16 rotations
+  const gapGradient = 0.3 + Math.random() * 0.5; // Random gap gradient 0.3-0.8
   
-  // Unified morphing equation using complex exponentials
-  const positions = Array.from({length: N}, (_, i) => {
+  return Array.from({length: N}, (_, i) => {
     const t = i / N;
-    const s = i / (N - 1);
+    const θ = spiralTightness * Math.PI * t; // Random spiral tightness
+    const r = 12 * Math.pow(t, gapGradient); // Random gap gradient via power
     
-    // Smooth interpolation functions
-    const α = λ * λ * λ; // Cubic for smooth acceleration
-    const β = 1 - (1 - λ) * (1 - λ); // Quadratic ease-in
-    
-    // Unified angle: morphs from spiral to helix
-    const θ = 2 * Math.PI * (8 * t + α * Math.floor(2 * s) * 0.5);
-    
-    // Unified radius: morphs from disk to double helix
-    const R = 6 + 3 * Math.cos(4 * Math.PI * t) * (1 - α) + // Disk component
-              β * 2 * Math.sin(Math.PI * s * 2); // Helix separation
-    
-    // Unified height: morphs from flat to vertical helix
-    const Z = λ * (10 * (t - 0.5) + // Linear rise
-                   3 * Math.sin(θ * λ) * (1 - λ * λ) + // Wave modulation
-                   α * 2 * Math.cos(4 * Math.PI * t)); // Helix variation
-    
-    // Twist component for ribbon phase
-    const twist = λ * (1 - λ) * 4; // Peaks at λ=0.5
-    const φ = twist * Math.sin(2 * Math.PI * s);
+    // Extremely flat - true galaxy disk profile
+    const z = 0.3 * (1 - t) * Math.cos(θ); // Minimal height, decreases outward
     
     return [
-      R * Math.cos(θ + φ) + ε(),
-      R * Math.sin(θ + φ) + ε(),
-      Z + ε()
+      r * Math.cos(θ) + ε(),
+      r * Math.sin(θ) + ε(),
+      z + ε()
     ] as Vec3;
   });
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MORPH RIBBON: True Möbius strip with smooth continuous twist
+// Ψ₂(u,v) = C(u) + v·R(u/2)·[n₁(u), n₂(u), n₃]
+// ═══════════════════════════════════════════════════════════════
+const morphRibbon = (ε: () => number): Vec3[] => {
+  const strips = 27; // Number of strips across width
+  const loops = Math.floor(N / strips); // Points along the strip
   
-  // Elegant unified edge pattern
+  return Array.from({length: N}, (_, i) => {
+    const strip = i % strips;
+    const loop = Math.floor(i / strips);
+    
+    // Parameters: u along strip [0,2π], v across width [-1,1]
+    const u = (loop / loops) * 2 * Math.PI;
+    const v = (strip / (strips - 1) - 0.5) * 2;
+    
+    // Center curve - a circle in 3D space
+    const R = 10;
+    const centerX = R * Math.cos(u);
+    const centerY = R * Math.sin(u);
+    const centerZ = 2 * Math.sin(3 * u); // Gentle 3D variation
+    
+    // Möbius twist: rotate the strip by u/2 as we go around
+    const twist = u / 2; // 180° total rotation creates Möbius topology
+    const width = 3.5;
+    
+    // Normal to the circle at point u
+    const normalX = -Math.cos(u);
+    const normalY = -Math.sin(u);
+    
+    // Binormal (perpendicular to both tangent and normal)
+    const binormalZ = 1;
+    
+    // Apply twist rotation in the normal-binormal plane
+    const ribbonX = normalX * Math.cos(twist);
+    const ribbonY = normalY * Math.cos(twist);
+    const ribbonZ = binormalZ * Math.sin(twist);
+    
+    return [
+      centerX + v * width * ribbonX + ε(),
+      centerY + v * width * ribbonY + ε(),
+      centerZ + v * width * ribbonZ + ε()
+    ] as Vec3;
+  });
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MORPH HELIX: Classic DNA double helix structure
+// Ψ₃(t,s) = [R·cos(ωt + sπ), R·sin(ωt + sπ), h·t]
+// ═══════════════════════════════════════════════════════════════
+const morphHelix = (ε: () => number): Vec3[] => {
+  const positions: Vec3[] = [];
+  const pointsPerStrand = Math.floor(N * 0.45); // 45% per strand
+  const bridgePoints = N - 2 * pointsPerStrand; // 10% for bridges
+  
+  // Generate two helical strands
+  for (let strand = 0; strand < 2; strand++) {
+    const phase = strand * Math.PI; // 180° offset for opposite strand
+    
+    for (let i = 0; i < pointsPerStrand; i++) {
+      const t = i / (pointsPerStrand - 1);
+      const θ = 10 * Math.PI * t; // 5 complete turns
+      const R = 6; // Fixed radius for clean helix
+      const height = 25 * (t - 0.5); // Total height of 25 units
+      
+      positions.push([
+        R * Math.cos(θ + phase) + ε(),
+        R * Math.sin(θ + phase) + ε(),
+        height + ε()
+      ] as Vec3);
+    }
+  }
+  
+  // Add base-pair bridges between strands at regular intervals
+  const bridgeInterval = Math.floor(pointsPerStrand / (bridgePoints + 1));
+  for (let i = 0; i < bridgePoints; i++) {
+    const idx = (i + 1) * bridgeInterval;
+    if (idx < pointsPerStrand) {
+      const p1 = positions[idx];
+      const p2 = positions[idx + pointsPerStrand];
+      
+      // Create intermediate points along the bridge
+      const t = (i % 3) / 2; // Vary position along bridge
+      positions.push([
+        p1[0] * (1 - t) + p2[0] * t + ε(),
+        p1[1] * (1 - t) + p2[1] * t + ε(),
+        p1[2] * (1 - t) + p2[2] * t + ε()
+      ] as Vec3);
+    }
+  }
+  
+  // Fill any remaining points
+  while (positions.length < N) {
+    const idx = positions.length % pointsPerStrand;
+    const p = positions[idx];
+    positions.push([p[0] + ε(), p[1] + ε(), p[2] + ε()] as Vec3);
+  }
+  
+  return positions;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MORPH: Select topology based on variant
+// ═══════════════════════════════════════════════════════════════
+export const generateMathHelixLayout = (variant?: number): Layout => {
+  const v = variant ?? Math.floor(Math.random() * 3);
+  const ε = noise(0.1);
+  
+  // Generate positions based on variant
+  const positions = v === 0 ? morphDisk(ε) : v === 1 ? morphRibbon(ε) : morphHelix(ε);
+  
+  // Edge patterns specific to each topology
   const edges: [number, number][] = [];
-  const step = Math.max(1, Math.floor((1 - λ) * 8 + λ * 27));
   
-  for (let i = 0; i < N - 1; i++) {
-    edges.push([i, i + 1]); // Backbone
-    if (i + step < N && i % Math.floor(step / (1 + λ)) === 0) {
-      edges.push([i, i + step]); // Cross-connections
+  if (v === 0) { // Disk: spiral connections
+    for (let i = 0; i < N - 1; i++) {
+      edges.push([i, i + 1]);
+      if (i % 13 === 0 && i + 13 < N) edges.push([i, i + 13]);
+    }
+  } else if (v === 1) { // Ribbon: grid pattern with Möbius closure
+    const W = 27;
+    const loops = Math.floor(N / W);
+    
+    for (let i = 0; i < N; i++) {
+      const strip = i % W;
+      const loop = Math.floor(i / W);
+      
+      // Along width (connect strips)
+      if (strip < W - 1) edges.push([i, i + 1]);
+      
+      // Along length (connect loops)
+      if (loop < loops - 1) {
+        edges.push([i, i + W]);
+      } else {
+        // Connect last loop to first loop with twist (Möbius closure)
+        const targetStrip = W - 1 - strip; // Flip across width for twist
+        const targetIdx = targetStrip;
+        if (targetIdx < N) edges.push([i, targetIdx]);
+      }
+    }
+  } else { // Helix: two separate continuous strands
+    const n = Math.floor(N / 2);
+    for (let i = 0; i < n - 1; i++) {
+      edges.push([i, i + 1]); // Strand 1 backbone
+    }
+    for (let i = n; i < 2 * n - 1 && i < N - 1; i++) {
+      edges.push([i, i + 1]); // Strand 2 backbone
     }
   }
   
   return makeLayout(positions, edges);
 };
 // ═══════════════════════════════════════════════════════════════
-// WORMHOLE: Toroidal knot with golden ratio proportions
-// T(t) = (R+r·cos(pθ))·e^(iqθ) + r·sin(pθ)·k̂
-// (p,q) = (13,8) creates complex knot where 13/8 ≈ φ (golden ratio)
+// WORMHOLE: Asymmetric hyperboloid funnel with random parameters
+// H(u,v) = [r(v)·(1+αsin(u))·cos(u), r(v)·(1+αsin(u))·sin(u), v·h]
+// where r(v) = √(r₀² + (v/a)²) creates hyperboloid shape
 // ═══════════════════════════════════════════════════════════════
 export const generateMathWormholeLayout = (): Layout => {
-  const φ = (1 + Math.sqrt(5)) / 2; // Golden ratio for beauty
-  const [R, r] = [10, 5]; // Major and minor radii
-  const [p, q] = [13, 8]; // Coprime for complex knot (13:8 ~ φ)
-  const ε = noise(0.2);
+  const ε = noise(0.15);
   
-  // Elegant toroidal knot parametrization
+  // Random hyperboloid parameters for variety
+  const r0 = 1.5 + Math.random() * 1.5; // Throat radius (1.5-3)
+  const a = 0.3 + Math.random() * 0.4; // Shape parameter (0.3-0.7)
+  const α = 0.2 + Math.random() * 0.3; // Asymmetry strength (0.2-0.5)
+  
+  // Single equation: asymmetric hyperboloid surface
   const positions = Array.from({length: N}, (_, i) => {
-    const θ = 2 * Math.PI * i / N * q; // Parametric angle
-    const ρ = R + r * Math.cos(p * θ / q); // Varying radius
+    const θ = (i % 27) / 27 * 2 * Math.PI; // Angle around hyperboloid
+    const v = (Math.floor(i / 27) / 26 - 0.5) * 2; // Height parameter [-1, 1]
+    
+    // Hyperboloid radius: r = √(r0² + (v/a)²)
+    const r = Math.sqrt(r0 * r0 + (v/a) * (v/a));
+    
+    // Asymmetry factor: varies with angle
+    const asym = 1 + α * Math.sin(θ * 2); // Creates bulge on one side
     
     return [
-      ρ * Math.cos(θ) + ε(),
-      ρ * Math.sin(θ) + ε(),
-      r * Math.sin(p * θ / q) + ε()
+      r * asym * Math.cos(θ) + ε(),
+      r * asym * Math.sin(θ) + ε(),
+      v * 8 + ε() // Vertical stretch
     ] as Vec3;
   });
   
-  // Golden ratio edge pattern for wormhole topology
+  // Grid-based connections for mesh
   const edges: [number, number][] = [];
-  const stride = Math.floor(N * φ / 10); // Golden ratio stride
+  const rings = Math.floor(N / 27);
   
   for (let i = 0; i < N; i++) {
-    // Primary helix
-    edges.push([i, (i + 1) % N]);
-    // Golden spiral connections
-    if (i % Math.floor(φ * φ) === 0) {
-      edges.push([i, (i + stride) % N]);
-    }
+    const ring = Math.floor(i / 27);
+    const pos = i % 27;
+    
+    // Connect around ring
+    if (pos < 26) edges.push([i, i + 1]);
+    else edges.push([i, i - 26]); // Close the ring
+    
+    // Connect to next ring
+    if (ring < rings - 1) edges.push([i, i + 27]);
   }
   
   return makeLayout(positions, edges);

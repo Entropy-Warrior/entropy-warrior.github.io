@@ -30,7 +30,7 @@ const CFG = {
   // Animation timing
   timing: { 
     pauseMs: 2000,      // Pause duration between morphs
-    morphMs: 4000       // Morph animation duration
+    morphMs: 6000       // Morph animation duration
   },
 
   // Line rendering
@@ -75,7 +75,6 @@ interface Machine {
   phase: 'pause' | 'morph';
   elapsed: number;
   startTime: number;
-  rotationAngle: number;  // Current rotation angle for steady state
 }
 
 interface Line {
@@ -142,6 +141,12 @@ class StreamlinedAnimation {
   private brownianOffsets: BrownianOffsets;
   private particleMapping: number[] = []; // Maps particle index to position index in current state
   private targetMapping: number[] = []; // Maps particle index to position index in target state
+  private rotationMatrix: number[][] = [[1,0,0],[0,1,0],[0,0,1]]; // Accumulated rotation as matrix
+  private rotationAxis: Vec3 = [0, 1, 0]; // Current rotation axis in 3D
+  private targetRotationAxis: Vec3 = [0, 1, 0]; // Target rotation axis for smooth transition
+  private rotationSpeed: number = 1; // Current rotation speed multiplier (always positive now)
+  private targetRotationSpeed: number = 1; // Target rotation speed for smooth transition
+  private rotationTransitionT: number = 1; // Progress of rotation transition (0-1)
 
   constructor() {
     // Generate all 4 states with slight viewing angle randomness
@@ -160,8 +165,7 @@ class StreamlinedAnimation {
       t: 0,
       phase: 'pause',
       elapsed: 0,
-      startTime: 0,
-      rotationAngle: 0,
+      startTime: 0
     };
     
     // Initialize all lines for the initial tensor state to be immediately visible
@@ -224,40 +228,95 @@ class StreamlinedAnimation {
     // ALWAYS update brownian motion - it never stops
     updateBrownianMotion(this.brownianOffsets, CFG.brownian);
 
-    // Constant slow rotation speed throughout all phases
-    const rotationSpeed = Math.PI / 20000; // radians per millisecond (20 seconds for 180 degrees)
-    const deltaTime = 16.67; // Approximate frame time in milliseconds (60 fps)
-    this.machine.rotationAngle = (this.machine.rotationAngle + rotationSpeed * deltaTime) % (2 * Math.PI);
+    // Smoothly transition rotation parameters over the entire cycle
+    if (this.rotationTransitionT < 1) {
+      // Calculate total cycle duration (pause + morph)
+      const totalCycleDuration = CFG.timing.pauseMs + CFG.timing.morphMs;
+      const currentCycleTime = this.machine.phase === 'pause' 
+        ? this.machine.elapsed 
+        : CFG.timing.pauseMs + this.machine.elapsed;
+      
+      // Progress through the entire cycle
+      this.rotationTransitionT = Math.min(1, currentCycleTime / totalCycleDuration);
+      const t = easeInOutQuart(this.rotationTransitionT);
+      
+      // Interpolate rotation axis using spherical linear interpolation (slerp)
+      const dot = this.rotationAxis[0] * this.targetRotationAxis[0] + 
+                  this.rotationAxis[1] * this.targetRotationAxis[1] + 
+                  this.rotationAxis[2] * this.targetRotationAxis[2];
+      
+      if (Math.abs(dot) < 0.9999) { // Axes are different enough to interpolate
+        const theta = Math.acos(Math.max(-1, Math.min(1, dot)));
+        const sinTheta = Math.sin(theta);
+        
+        if (Math.abs(sinTheta) > 0.001) {
+          const a = Math.sin((1 - t) * theta) / sinTheta;
+          const b = Math.sin(t * theta) / sinTheta;
+          
+          this.rotationAxis = [
+            a * this.rotationAxis[0] + b * this.targetRotationAxis[0],
+            a * this.rotationAxis[1] + b * this.targetRotationAxis[1],
+            a * this.rotationAxis[2] + b * this.targetRotationAxis[2]
+          ];
+        }
+      }
+      
+      // Normalize the axis
+      const len = Math.sqrt(this.rotationAxis[0]**2 + this.rotationAxis[1]**2 + this.rotationAxis[2]**2);
+      if (len > 0) {
+        this.rotationAxis = [
+          this.rotationAxis[0] / len,
+          this.rotationAxis[1] / len,
+          this.rotationAxis[2] / len
+        ];
+      }
+      
+      // Interpolate rotation speed
+      this.rotationSpeed = this.rotationSpeed * (1 - t) + this.targetRotationSpeed * t;
+    }
+
+    // Update rotation by accumulating small rotations into the matrix
+    const baseRotationSpeed = Math.PI / 20000; // radians per millisecond
+    const deltaTime = 16.67; // Approximate frame time in milliseconds
+    const deltaAngle = this.rotationSpeed * baseRotationSpeed * deltaTime;
+    
+    // Apply incremental rotation using Rodrigues' formula
+    if (Math.abs(deltaAngle) > 0.0001) {
+      const [ax, ay, az] = this.rotationAxis;
+      const c = Math.cos(deltaAngle);
+      const s = Math.sin(deltaAngle);
+      const t = 1 - c;
+      
+      // Rodrigues rotation matrix for this frame's rotation
+      const R = [
+        [c + ax*ax*t, ax*ay*t - az*s, ax*az*t + ay*s],
+        [ay*ax*t + az*s, c + ay*ay*t, ay*az*t - ax*s],
+        [az*ax*t - ay*s, az*ay*t + ax*s, c + az*az*t]
+      ];
+      
+      // Multiply accumulated matrix by new rotation
+      const newMatrix = [[0,0,0],[0,0,0],[0,0,0]];
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          newMatrix[i][j] = 0;
+          for (let k = 0; k < 3; k++) {
+            newMatrix[i][j] += this.rotationMatrix[i][k] * R[k][j];
+          }
+        }
+      }
+      this.rotationMatrix = newMatrix;
+    }
     
     // Update state machine
     if (this.machine.phase === 'pause') {
       if (this.machine.elapsed >= CFG.timing.pauseMs) {
-        // Regenerate target layouts with randomness for variety
-        if (this.machine.next === State.Graph) {
-          this.layouts[State.Graph] = generateMathGraphLayout();
-          this.stateBounds[State.Graph] = this.layouts[State.Graph].bounds;
-        } else if (this.machine.next === State.Morph1) {
-          // Always regenerate as flat disk with waves
-          this.layouts[State.Morph1] = generateMathHelixLayout(0);
-          this.stateBounds[State.Morph1] = this.layouts[State.Morph1].bounds;
-        } else if (this.machine.next === State.Morph2) {
-          // Always regenerate as twisted ribbon
-          this.layouts[State.Morph2] = generateMathHelixLayout(1);
-          this.stateBounds[State.Morph2] = this.layouts[State.Morph2].bounds;
-        } else if (this.machine.next === State.Morph3) {
-          // Always regenerate as full double helix
-          this.layouts[State.Morph3] = generateMathHelixLayout(3);
-          this.stateBounds[State.Morph3] = this.layouts[State.Morph3].bounds;
-        }
-        
-        // Generate random mapping for dot assignments
+        // Start morphing - just generate random mapping, don't regenerate layouts yet
         this.generateRandomMapping();
         
         this.machine.phase = 'morph';
         this.machine.t = 0;
         this.machine.startTime = time;
         this.machine.elapsed = 0;
-        // Keep rotation angle for seamless transition
       }
     } else { // morph
       this.machine.t = Math.min(this.machine.elapsed / CFG.timing.morphMs, 1);
@@ -266,12 +325,99 @@ class StreamlinedAnimation {
         // Transition complete - update particle mapping
         this.particleMapping = [...this.targetMapping];
         
+        // Update state FIRST
+        const previousState = this.machine.state;
         this.machine.state = this.machine.next;
         this.machine.next = nextState(this.machine.state);
+        
+        // Regenerate layouts that are TWO states away (not adjacent to current state)
+        // This ensures we never regenerate a layout we're about to transition to/from
+        const stateAfterNext = nextState(this.machine.next);
+        const stateTwoAway = nextState(stateAfterNext);
+        
+        // Only regenerate states that are at least 2 transitions away
+        if (stateTwoAway === State.Graph) {
+          this.layouts[State.Graph] = generateMathGraphLayout();
+          this.stateBounds[State.Graph] = this.layouts[State.Graph].bounds;
+        } else if (stateTwoAway === State.Wormhole) {
+          this.layouts[State.Wormhole] = generateMathWormholeLayout();
+          this.stateBounds[State.Wormhole] = this.layouts[State.Wormhole].bounds;
+        } else if (stateTwoAway === State.Morph1) {
+          this.layouts[State.Morph1] = generateMathHelixLayout(0);
+          this.stateBounds[State.Morph1] = this.layouts[State.Morph1].bounds;
+        } else if (stateTwoAway === State.Morph2) {
+          this.layouts[State.Morph2] = generateMathHelixLayout(1);
+          this.stateBounds[State.Morph2] = this.layouts[State.Morph2].bounds;
+        } else if (stateTwoAway === State.Morph3) {
+          this.layouts[State.Morph3] = generateMathHelixLayout(3);
+          this.stateBounds[State.Morph3] = this.layouts[State.Morph3].bounds;
+        }
+        
+        // Don't recalculate unified scale here - it would cause a jump
+        // The scale should remain constant throughout the animation
+        
+        // Set new target rotation parameters that will be reached at the END of the next cycle
+        // The current axis becomes the "old" axis we're transitioning from
+        const currentAxis = this.targetRotationAxis; // Use the target we just reached
+        
+        // Generate a random perturbation angle (how much to pivot the axis)
+        const perturbAngle = Math.PI / 4 + Math.random() * Math.PI / 2; // Between 45-135 degrees
+        
+        // Generate a random perpendicular axis to rotate around
+        let perpAxis: Vec3;
+        if (Math.abs(currentAxis[2]) < 0.9) {
+          perpAxis = [
+            -currentAxis[1],
+            currentAxis[0],
+            0
+          ];
+        } else {
+          perpAxis = [
+            0,
+            -currentAxis[2],
+            currentAxis[1]
+          ];
+        }
+        
+        // Normalize perpendicular axis
+        const perpLen = Math.sqrt(perpAxis[0]**2 + perpAxis[1]**2 + perpAxis[2]**2);
+        if (perpLen > 0) {
+          perpAxis = [perpAxis[0]/perpLen, perpAxis[1]/perpLen, perpAxis[2]/perpLen];
+        }
+        
+        // Rotate current axis around perpendicular axis by perturbAngle
+        const c = Math.cos(perturbAngle);
+        const s = Math.sin(perturbAngle);
+        const [px, py, pz] = perpAxis;
+        const dot = px * currentAxis[0] + py * currentAxis[1] + pz * currentAxis[2];
+        
+        this.targetRotationAxis = [
+          currentAxis[0] * c + (py * currentAxis[2] - pz * currentAxis[1]) * s + px * dot * (1 - c),
+          currentAxis[1] * c + (pz * currentAxis[0] - px * currentAxis[2]) * s + py * dot * (1 - c),
+          currentAxis[2] * c + (px * currentAxis[1] - py * currentAxis[0]) * s + pz * dot * (1 - c)
+        ];
+        
+        // Normalize target axis
+        const targetLen = Math.sqrt(this.targetRotationAxis[0]**2 + this.targetRotationAxis[1]**2 + this.targetRotationAxis[2]**2);
+        if (targetLen > 0) {
+          this.targetRotationAxis = [
+            this.targetRotationAxis[0]/targetLen,
+            this.targetRotationAxis[1]/targetLen,
+            this.targetRotationAxis[2]/targetLen
+          ];
+        }
+        
+        // Set new target rotation speed (between 0.7x and 1.5x base speed, always positive/forward)
+        const speedMultiplier = 0.7 + Math.random() * 0.8;
+        this.targetRotationSpeed = Math.abs(this.targetRotationSpeed) * speedMultiplier;
+        
+        // Reset transition timer - it will smoothly interpolate over the next full cycle
+        this.rotationTransitionT = 0;
+        
+        // State already updated above, just reset phase
         this.machine.phase = 'pause';
         this.machine.startTime = time;
         this.machine.elapsed = 0;
-        // Keep rotation angle for continuous rotation
       }
     }
 
@@ -340,11 +486,6 @@ class StreamlinedAnimation {
     // Calculate particle positions based on mapping
     const particlePositions: Vec3[] = new Array(N);
     
-    // Apply rotation during both pause and morph phases for seamless transition
-    const rotAngle = this.machine.rotationAngle;
-    const cosRot = Math.cos(rotAngle);
-    const sinRot = Math.sin(rotAngle);
-    
     for (let particleIdx = 0; particleIdx < N; particleIdx++) {
       let pos: Vec3;
       if (isMorphing) {
@@ -360,14 +501,13 @@ class StreamlinedAnimation {
         pos = currentLayout.positions[posIdx];
       }
       
-      // Apply Y-axis rotation if in pause phase
-      if (rotAngle !== 0) {
-        const x = pos[0] * cosRot - pos[2] * sinRot;
-        const z = pos[0] * sinRot + pos[2] * cosRot;
-        particlePositions[particleIdx] = [x, pos[1], z];
-      } else {
-        particlePositions[particleIdx] = pos;
-      }
+      // Apply accumulated rotation matrix
+      const [x, y, z] = pos;
+      particlePositions[particleIdx] = [
+        this.rotationMatrix[0][0] * x + this.rotationMatrix[0][1] * y + this.rotationMatrix[0][2] * z,
+        this.rotationMatrix[1][0] * x + this.rotationMatrix[1][1] * y + this.rotationMatrix[1][2] * z,
+        this.rotationMatrix[2][0] * x + this.rotationMatrix[2][1] * y + this.rotationMatrix[2][2] * z
+      ];
     }
 
     // Draw lines connecting the actual particles (with brownian motion)
