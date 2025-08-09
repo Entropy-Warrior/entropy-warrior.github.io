@@ -97,7 +97,7 @@ const blogPostData = {
           {post.data.title || post.id}
         </h1>
         {post.data.description && (
-          <p class="text-base text-gray-600 dark:text-gray-400 font-light max-w-2xl mx-auto leading-relaxed">
+          <p class="text-lg text-gray-600 dark:text-gray-300 font-light max-w-3xl mx-auto leading-relaxed tracking-wide mb-8 opacity-90" style="font-family: 'Times New Roman', 'Georgia', 'serif'; font-variation-settings: 'wght' 350;">
             {post.data.description}
           </p>
         )}
@@ -127,7 +127,7 @@ const blogPostData = {
         prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400
         prose-img:rounded-lg prose-img:shadow-sm prose-img:mx-auto
         [&>p:first-of-type>img]:max-w-2xl [&>p:first-of-type>img]:w-full
-        prose-img:max-w-md
+        prose-img:w-[85%] prose-img:max-w-none
         max-w-none
       " id="article-content">
         <Content />

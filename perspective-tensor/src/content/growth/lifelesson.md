@@ -3,7 +3,7 @@ title: "Life Lessons from Machine Learning"
 description: "Machines learn from us, we learn from their learnings."
 pubDate: 2024-03-10
 draft: false
-tags: ["personal-growth", "ai-parallels"]
+tags: ["ai", "growth", "machine-learning"]
 section: "growth"
 author: "Lin Wang"
 ---

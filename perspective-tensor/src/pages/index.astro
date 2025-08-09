@@ -32,25 +32,44 @@ const websiteData = {
 <BaseLayout title="Home">
   <StructuredData type="WebSite" data={websiteData} />
   <div class="relative flex items-center justify-center min-h-[calc(100vh-12rem)] w-full">
-    <AnimationCanvas client:load />
-    <div class="absolute inset-0 flex items-end justify-center pointer-events-none z-20">
-      <p class="text-base md:text-lg lg:text-xl text-blue-950 dark:text-blue-200 font-light leading-relaxed tracking-wide text-center px-2 py-1 mx-8 md:mx-12 lg:mx-16 mb-12 md:mb-16 lg:mb-20 animate-fade-in-up bg-white/10 dark:bg-gray-900/30 backdrop-blur-sm rounded-lg">
-        I explore the patterns connecting machine intelligence, organizational dynamics, and personal growth — join me in navigating this multidimensional space where technology and humanity converge.
-      </p>
-    </div>
-    <!-- Transparent clickable overlay covering only the plotting area (excluding text at bottom) -->
-    <a href="/blog" class="group absolute top-0 left-0 right-0 bottom-20 md:bottom-24 lg:bottom-28 z-30 cursor-pointer" data-astro-history="push" aria-label="Go to blog" id="blog-link">
-      <!-- Elegant mouse-tracking tooltip -->
-      <div id="mouse-tooltip" class="fixed opacity-0 transition-opacity duration-500 ease-out pointer-events-none z-40">
-        <div class="bg-white/5 dark:bg-gray-900/10 backdrop-blur-lg border border-gray-200/10 dark:border-gray-600/10 rounded-xl px-3 py-1.5 shadow-2xl ml-3">
-          <div class="text-sm font-light text-gray-700 dark:text-gray-300 tracking-wide whitespace-nowrap">
-            <span id="typewriter-text"></span><span class="typewriter-cursor">|</span>
+    <!-- Layer 1: Canvas (base rendering layer) -->
+    <div class="relative w-full h-full" id="canvas-container">
+      <AnimationCanvas client:load />
+      
+      <!-- Layer 2: Gradient blend screen (same size/position as canvas) -->
+      <div class="absolute inset-0 pointer-events-none z-10" style="background: radial-gradient(ellipse at center, transparent 0%, transparent 55%, rgba(255,255,255,0.1) 60%, rgba(255,255,255,0.2) 65%, rgba(255,255,255,0.4) 70%, rgba(255,255,255,0.6) 75%, rgba(255,255,255,0.8) 80%, rgba(255,255,255,0.95) 85%, rgba(255,255,255,1) 90%, rgba(255,255,255,1) 95%, rgba(255,255,255,1) 100%);"></div>
+      
+      <!-- Interactive trigger for tooltip (covers canvas only) -->
+      <div class="absolute inset-0 cursor-pointer z-20" id="canvas-trigger">
+        <div id="mouse-tooltip" class="fixed opacity-0 transition-opacity duration-500 ease-out pointer-events-none z-40">
+          <div class="bg-white/5 dark:bg-gray-900/10 backdrop-blur-lg border border-gray-200/10 dark:border-gray-600/10 rounded-xl px-3 py-1.5 shadow-2xl ml-3">
+            <div class="text-sm font-light text-gray-700 dark:text-gray-300 tracking-wide whitespace-nowrap">
+              <span id="typewriter-text"></span><span class="typewriter-cursor">|</span>
+            </div>
           </div>
+          <div class="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-0 h-0 border-t-2 border-b-2 border-r-2 border-t-transparent border-b-transparent border-r-white/5 dark:border-r-gray-900/10"></div>
         </div>
-        <!-- Elegant arrow pointing left -->
-        <div class="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-0 h-0 border-t-2 border-b-2 border-r-2 border-t-transparent border-b-transparent border-r-white/5 dark:border-r-gray-900/10"></div>
       </div>
-    </a>
+    </div>
+    
+    <!-- Layer 3: Floating text (positioned independently, above blend screen) -->
+    <div class="absolute bottom-12 md:bottom-16 lg:bottom-20 left-8 right-8 md:left-12 md:right-12 lg:left-16 lg:right-16 flex flex-col items-center pointer-events-none z-30">
+      <p class="text-lg md:text-xl lg:text-2xl text-blue-900 dark:text-blue-400 font-light leading-loose tracking-wider text-center animate-fade-in-up animate-breathe bg-white/10 dark:bg-gray-900/30 backdrop-blur-sm rounded-lg max-w-4xl mx-4 mb-4" style="font-family: 'Times New Roman', 'Georgia', 'serif'; font-variation-settings: 'wght' 300;">
+        Journey through the intersections of minds, machines, and purpose.
+      </p>
+      {posts.length > 0 && (
+        <a href={`/blog/${posts[0].id}`} 
+           class="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-300 pointer-events-auto font-light tracking-wide opacity-70 hover:opacity-100"
+           data-astro-history="push">
+          Recent exploration → {posts[0].data.title}
+        </a>
+      )}
+    </div>
+    
+    <!-- Layer 4: Floating footer (if needed - placeholder for future) -->
+    <!-- <div class="absolute bottom-4 left-4 right-4 flex justify-center pointer-events-none">
+      <div class="text-xs text-gray-500 dark:text-gray-400">Footer content</div>
+    </div> -->
     <style>
         @keyframes fadeInUp {
           0% {
@@ -78,23 +97,40 @@ const websiteData = {
           0%, 50% { opacity: 1; }
           51%, 100% { opacity: 0; }
         }
+        
+        @keyframes breathe {
+          0%, 100% { 
+            opacity: 0.8; 
+            transform: scale(1); 
+          }
+          50% { 
+            opacity: 1; 
+            transform: scale(1.02); 
+          }
+        }
+        
+        .animate-breathe {
+          animation: breathe 8s ease-in-out infinite;
+        }
       </style>
       
       <script>
         let tooltipInitialized = false;
         let typewriterTimeout;
         let currentTypewriterIndex = 0;
+        let movementTimeout;
+        let isMoving = false;
         
         function initializeTooltip() {
           // Prevent duplicate initialization
           if (tooltipInitialized) return;
           
-          const blogLink = document.getElementById('blog-link');
+          const canvasTrigger = document.getElementById('canvas-trigger');
           const tooltip = document.getElementById('mouse-tooltip');
           const typewriterText = document.getElementById('typewriter-text');
-          const fullText = "Let's explore these shifting perspectives...";
+          const fullText = "Let's explore...";
           
-          if (blogLink && tooltip && typewriterText) {
+          if (canvasTrigger && tooltip && typewriterText) {
             tooltipInitialized = true;
             let isHovering = false;
             
@@ -104,7 +140,7 @@ const websiteData = {
               currentTypewriterIndex = 0;
               
               function typeNextChar() {
-                if (currentTypewriterIndex < fullText.length && isHovering) {
+                if (currentTypewriterIndex < fullText.length && isHovering && !isMoving) {
                   const char = fullText[currentTypewriterIndex];
                   typewriterText.textContent += char;
                   currentTypewriterIndex++;
@@ -133,37 +169,68 @@ const websiteData = {
             }
             
             // Show tooltip and start tracking mouse
-            blogLink.addEventListener('mouseenter', function(e) {
+            canvasTrigger.addEventListener('mouseenter', function(e) {
               isHovering = true;
-              tooltip.classList.remove('opacity-0');
-              tooltip.classList.add('opacity-100');
-              updateTooltipPosition(e);
-              startTypewriter();
+              if (!isMoving) {
+                tooltip.classList.remove('opacity-0');
+                tooltip.classList.add('opacity-100');
+                updateTooltipPosition(e);
+                startTypewriter();
+              }
             });
             
             // Hide tooltip and stop typewriter
-            blogLink.addEventListener('mouseleave', function() {
+            canvasTrigger.addEventListener('mouseleave', function() {
               isHovering = false;
               tooltip.classList.remove('opacity-100');
               tooltip.classList.add('opacity-0');
               clearTimeout(typewriterTimeout);
+              clearTimeout(movementTimeout);
               typewriterText.textContent = '';
               currentTypewriterIndex = 0;
+              isMoving = false;
             });
             
-            // Track mouse movement with throttling for better performance
+            // Track mouse movement with movement detection
             let animationFrameId;
-            blogLink.addEventListener('mousemove', function(e) {
+            canvasTrigger.addEventListener('mousemove', function(e) {
               if (isHovering) {
+                // Hide tooltip immediately when mouse moves
+                if (!isMoving) {
+                  isMoving = true;
+                  tooltip.classList.remove('opacity-100');
+                  tooltip.classList.add('opacity-0');
+                  clearTimeout(typewriterTimeout);
+                }
+                
+                // Clear previous movement timeout
+                clearTimeout(movementTimeout);
+                
                 // Cancel previous frame
                 if (animationFrameId) {
                   cancelAnimationFrame(animationFrameId);
                 }
-                // Schedule update on next frame
+                
+                // Update position but keep hidden
                 animationFrameId = requestAnimationFrame(() => {
                   updateTooltipPosition(e);
                 });
+                
+                // Set timeout to show tooltip when movement stops
+                movementTimeout = setTimeout(() => {
+                  if (isHovering) {
+                    isMoving = false;
+                    tooltip.classList.remove('opacity-0');
+                    tooltip.classList.add('opacity-100');
+                    startTypewriter();
+                  }
+                }, 150); // Show after 150ms of no movement
               }
+            });
+            
+            // Click handler to navigate to blog
+            canvasTrigger.addEventListener('click', function() {
+              window.location.href = '/blog';
             });
             
             // Update tooltip position to the right of cursor

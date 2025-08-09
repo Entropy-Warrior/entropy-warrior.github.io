@@ -536,8 +536,10 @@ export default function StreamlinedAnimationCanvas() {
     animationRef.current = animation;
     let rafId = 0;
 
-    // Set initial theme state
-    setIsDarkMode(document.documentElement.classList.contains('dark'));
+    // Set initial theme state (check if we're in browser)
+    if (typeof document !== 'undefined') {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    }
 
     // Initialize first equation
     const initialState = animation.getCurrentState();
@@ -589,20 +591,24 @@ export default function StreamlinedAnimationCanvas() {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
           // Theme changed, update state and re-render
-          const isDark = document.documentElement.classList.contains('dark');
-          setIsDarkMode(isDark);
-          if (!destroyed && animation) {
-            animation.render(ctx, width, height);
+          if (typeof document !== 'undefined') {
+            const isDark = document.documentElement.classList.contains('dark');
+            setIsDarkMode(isDark);
+            if (!destroyed && animation) {
+              animation.render(ctx, width, height);
+            }
           }
         }
       }
     });
     
     // Observe changes to the html element's class (where dark mode class is toggled)
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    });
+    if (typeof document !== 'undefined') {
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class']
+      });
+    }
 
     const animate = (time: number) => {
       if (destroyed) return;

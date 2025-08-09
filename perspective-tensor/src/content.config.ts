@@ -32,7 +32,7 @@ const growth = defineCollection({
     description: z.string().optional(),
     pubDate: z.coerce.date().optional(),
     draft: z.boolean().optional(),
-    topics: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
     author: z.string().optional()
   })
 });

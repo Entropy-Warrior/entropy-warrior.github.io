@@ -3,7 +3,7 @@ title: "State Space Models vs Transformers: A Nuanced Perspective on Sequence Mo
 description: "Comparing the strengths and limitations of State Space Models and Transformers in sequence modeling tasks"
 pubDate: 2024-02-15
 draft: false
-tags: ["ml-systems", "architecture"]
+tags: ["architecture", "machine-learning", "first-principles"]
 section: "thoughts"
 author: "Lin Wang"
 ---

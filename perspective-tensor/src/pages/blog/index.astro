@@ -24,10 +24,10 @@ allPosts.sort((a, b) => {
 });
 
 // Extract all unique tags
-const allTags = new Set();
+const allTags = new Set<string>();
 allPosts.forEach(post => {
-  if (post.data.tags) {
-    post.data.tags.forEach(tag => allTags.add(tag));
+  if ('tags' in post.data && post.data.tags) {
+    post.data.tags.forEach((tag: string) => allTags.add(tag));
   }
 });
 
@@ -54,7 +54,7 @@ const blogData = {
   <div class="mx-auto px-4">
     <!-- Header -->
     <header class="mb-12">
-      <div class="flex items-center gap-3 mb-4">
+      <div class="flex items-center gap-3 mb-6">
         <a 
           href="/"
           class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors font-light"
@@ -66,57 +66,53 @@ const blogData = {
         <span class="text-sm text-gray-900 dark:text-gray-100 font-light">Blog</span>
       </div>
       
-      <h1 class="text-3xl font-light text-gray-900 dark:text-gray-100 mb-4">
-        Blog
-      </h1>
       <p class="text-base text-gray-600 dark:text-gray-400 font-light max-w-2xl">
         Exploring the intersection of machine intelligence, system design, and human complexity.
       </p>
     </header>
     
     <!-- Filters -->
-    <div class="mb-8 pb-8 border-b border-gray-200 dark:border-gray-700">
-      <!-- Section Filter -->
-      <div class="flex flex-wrap gap-2 mb-4">
+    <div class="mb-12">
+      <!-- Main Categories -->
+      <div class="flex items-center gap-6 mb-8">
         <button 
           data-filter-section="all"
-          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+          class="filter-section text-base font-light transition-all duration-300 border-b-2 border-gray-900 text-gray-900 dark:border-gray-100 dark:text-gray-100 pb-1"
         >
           All
         </button>
         <button 
           data-filter-section="thoughts"
-          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          class="filter-section text-base font-light transition-all duration-300 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 pb-1 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600"
         >
           Thoughts
         </button>
         <button 
           data-filter-section="code"
-          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          class="filter-section text-base font-light transition-all duration-300 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 pb-1 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600"
         >
           Code
         </button>
         <button 
           data-filter-section="growth"
-          class="filter-section px-3 py-1 text-sm font-light rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          class="filter-section text-base font-light transition-all duration-300 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 pb-1 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600"
         >
           Growth
         </button>
       </div>
       
       <!-- Tag Filter -->
-      <div class="flex flex-wrap gap-2">
-        <span class="text-xs text-gray-500 dark:text-gray-400 mr-2 self-center">Filter by tag:</span>
+      <div class="flex flex-wrap items-center gap-1.5">
         <button 
           data-filter-tag="all"
-          class="filter-tag text-xs px-2 py-1 rounded transition-all duration-200 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          class="filter-tag text-xs px-2 py-0.5 rounded-full transition-all duration-200 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 subpixel-antialiased"
         >
-          All tags
+          all
         </button>
         {Array.from(allTags).sort().map(tag => (
           <button 
             data-filter-tag={tag}
-            class="filter-tag text-xs px-2 py-1 rounded transition-all duration-200 text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            class="filter-tag text-xs px-2 py-0.5 rounded-full transition-all duration-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:bg-gray-800 subpixel-antialiased"
           >
             {tag}
           </button>
@@ -125,7 +121,7 @@ const blogData = {
     </div>
     
     <!-- Posts with stacked card effect -->
-    <div class="posts-stack relative" id="posts-container">
+    <div class="posts-stack relative overflow-visible" id="posts-container">
       {allPosts.length === 0 ? (
         <div class="text-center py-16">
           <p class="text-gray-500 dark:text-gray-400 font-light mb-4">
@@ -139,37 +135,37 @@ const blogData = {
                          post.collection === 'code' ? `/code/${post.id}` :
                          `/growth/${post.id}`;
           
-          // Different styles for different sections
-          const sectionStyles = {
-            thoughts: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
-            code: 'border-blue-200 dark:border-blue-900 hover:border-blue-300 dark:hover:border-blue-800',
-            growth: 'border-green-200 dark:border-green-900 hover:border-green-300 dark:hover:border-green-800'
-          };
-          
-          const borderStyle = sectionStyles[post.section] || sectionStyles.thoughts;
+          // Consistent neutral border for all cards
+          const borderStyle = 'border-gray-200 dark:border-gray-700';
           
           return (
             <article 
               class="post-card"
               data-section={post.section}
-              data-tags={post.data.tags?.join(',') || ''}
+              data-tags={'tags' in post.data ? post.data.tags?.join(',') : ''}
             >
-              <a 
-                href={postUrl}
-                class="block px-6 pt-4 pb-5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm hover:shadow-lg transition-all duration-500 h-[180px] overflow-hidden flex flex-col relative"
-                data-astro-history="push"
-              >
+              <div class="card-inner">
+                <a 
+                  href={postUrl}
+                  class={`block px-6 pt-4 pb-5 rounded-lg border shadow-sm hover:shadow-lg transition-all duration-500 h-[180px] flex flex-col relative ${borderStyle} bg-white dark:bg-gray-800`}
+                  data-astro-history="push"
+                >
+                <!-- Category bookmark tab -->
+                <div class={`absolute -right-20 bottom-16 w-24 h-6 flex items-center justify-end pr-3 text-xs font-medium text-gray-700 dark:text-gray-300 subpixel-antialiased rounded-r-md shadow-sm ${
+                  post.section === 'thoughts' ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600' :
+                  post.section === 'code' ? 'bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-700' :
+                  post.section === 'growth' ? 'bg-green-50 dark:bg-green-900 border-green-200 dark:border-green-700' :
+                  'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
+                } border border-l-0`} style="z-index: 10;">
+                  {post.section}
+                </div>
+                
                 <div class="flex-1 flex flex-col">
-                  <div class="mb-1.5">
-                    <span class="text-xs px-2 py-0.5 rounded font-light bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-                      {post.section}
-                    </span>
-                  </div>
-                  <h2 class="text-xl font-light text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-2">
+                  <h2 class="text-xl font-light text-gray-950 dark:text-gray-50 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-2">
                     {post.data.title || post.id}
                   </h2>
                   {post.data.description && (
-                    <p class="text-sm text-gray-600 dark:text-gray-400 font-light leading-relaxed line-clamp-2 mb-3">
+                    <p class="text-sm text-gray-700 dark:text-gray-300 font-light leading-relaxed line-clamp-2 mb-3">
                       {post.data.description}
                     </p>
                   )}
@@ -177,7 +173,7 @@ const blogData = {
                 
                 <div class="flex items-end justify-between">
                   <div class="flex flex-wrap gap-1.5">
-                    {post.data.tags && post.data.tags.map((tag: string) => (
+                    {'tags' in post.data && post.data.tags && post.data.tags.map((tag: string) => (
                       <Tag text={tag} />
                     ))}
                   </div>
@@ -195,6 +191,7 @@ const blogData = {
                   )}
                 </div>
               </a>
+              </div>
             </article>
           );
         })
@@ -213,23 +210,69 @@ const blogData = {
     
     .post-card {
       position: absolute;
-      width: 100%;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      width: calc(100% - 80px); /* Make room for bookmark tabs */
       cursor: pointer;
       /* Dynamic positioning set via JS */
     }
     
-    /* Individual card hover - pull out elegantly */
-    .post-card:hover {
-      z-index: 50 !important;
-      transform: translateX(-20px) scale(1.02);
-      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2);
+    /* Simple card animation - float to center */
+    .card-inner {
+      position: relative;
+      width: 100%;
+      transition: transform 0.3s ease-out;
+      /* Advanced blur fix techniques */
+      transform: perspective(1px) translateZ(0);
+      backface-visibility: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      transform-origin: 50% 50%;
     }
     
-    .dark .post-card:hover {
-      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    /* Hovered card floats up and centers - no scale to avoid blur */
+    .post-card.active .card-inner {
+      transform: perspective(1px) translateY(-15px) translateZ(0);
     }
     
+    /* Background cards stay completely unchanged */
+    
+    /* Improve text rendering */
+    .post-card {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+    
+    /* Clean dark mode support now handled by Tailwind classes */
+    
+    /* Z-index management */
+    .post-card {
+      z-index: var(--z-index, 1);
+    }
+    
+    .post-card.active {
+      z-index: 100 !important;
+    }
+    
+    /* Enhanced shadow during pull - consistent across themes */
+    .post-card .card-inner > a {
+      transition: box-shadow 0.4s ease-out, 
+                  border-color 0.35s ease-out,
+                  background-color 0.25s ease-out;
+    }
+    
+    .post-card:hover .card-inner > a {
+      box-shadow: 
+        -8px 15px 35px -8px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(59, 130, 246, 0.2);
+      border-color: rgb(59, 130, 246, 0.4) !important;
+    }
+    
+    .dark .post-card:hover .card-inner > a {
+      box-shadow: 
+        -8px 15px 35px -8px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(59, 130, 246, 0.2);
+      border-color: rgb(59, 130, 246, 0.4) !important;
+    }
     
     /* Smooth transition for hidden cards */
     .post-card[style*="display: none"] {
@@ -238,10 +281,23 @@ const blogData = {
       pointer-events: none;
     }
     
+    /* Add perspective to container for 3D effect */
+    .posts-stack {
+      perspective: 1000px;
+    }
+    
     /* Responsive adjustments */
     @media (max-width: 768px) {
       .post-card:hover {
-        transform: translateY(-10px) scale(1.01);
+        transform: translateY(-15px) scale(1.02) rotate(-0.5deg);
+      }
+      
+      .post-card.pushed-up {
+        transform: translateY(-10px) scale(0.99);
+      }
+      
+      .post-card.pushed-down {
+        transform: translateY(10px) scale(0.99);
       }
     }
   </style>
@@ -249,16 +305,66 @@ const blogData = {
   <script>
     // Filter functionality with stacked cards
     document.addEventListener('DOMContentLoaded', () => {
-      const posts = document.querySelectorAll('.post-card');
-      const sectionButtons = document.querySelectorAll('.filter-section');
-      const tagButtons = document.querySelectorAll('.filter-tag');
+      const posts = document.querySelectorAll<HTMLElement>('.post-card');
+      const sectionButtons = document.querySelectorAll<HTMLButtonElement>('.filter-section');
+      const tagButtons = document.querySelectorAll<HTMLButtonElement>('.filter-tag');
       const container = document.getElementById('posts-container');
       
       let currentSection = 'all';
       let currentTag = 'all';
+      let currentVisiblePosts: HTMLElement[] = [];
+      let debounceTimeout: number | null = null;
+      let leaveTimeout: number | null = null;
+      
+      function setActiveCard(activePost: HTMLElement | null) {
+        // Remove active from all posts
+        currentVisiblePosts.forEach(post => post.classList.remove('active'));
+        
+        if (activePost) {
+          // Add active to hovered post and has-active to container
+          activePost.classList.add('active');
+          container?.classList.add('has-active');
+        } else {
+          // Remove has-active from container
+          container?.classList.remove('has-active');
+        }
+      }
+      
+      // Add hover interactions with longer debounce to prevent effects during quick movement
+      posts.forEach(post => {
+        post.addEventListener('mouseenter', function() {
+          // Clear any pending leave timeout
+          if (leaveTimeout) {
+            clearTimeout(leaveTimeout);
+            leaveTimeout = null;
+          }
+          
+          // Clear debounce timeout
+          if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+          }
+          
+          // Longer debounce delay - only activate if mouse stays for a bit
+          debounceTimeout = setTimeout(() => {
+            setActiveCard(post);
+            debounceTimeout = null;
+          }, 200) as unknown as number; // Increased from 50ms to 200ms
+        });
+        
+        post.addEventListener('mouseleave', function() {
+          // Clear debounce timeout on leave
+          if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = null;
+          }
+          
+          // Immediate deactivation when leaving
+          setActiveCard(null);
+        });
+      });
       
       function repositionCards() {
-        const visiblePosts = [];
+        currentVisiblePosts = []; // Clear and rebuild the visible posts array
         
         posts.forEach(post => {
           const postSection = post.getAttribute('data-section');
@@ -268,28 +374,31 @@ const blogData = {
           const tagMatch = currentTag === 'all' || postTags.includes(currentTag);
           
           if (sectionMatch && tagMatch) {
-            visiblePosts.push(post);
+            currentVisiblePosts.push(post);
             post.style.display = 'block';
           } else {
             post.style.display = 'none';
           }
+          post.classList.remove('active'); // Reset active state
         });
         
-        // Calculate optimal overlap to show just the tags
-        // Card height is 180px (h-[180px]), we want to show approximately the bottom 50px (tags area)
+        // Calculate optimal overlap to show the tags centered between cards
         const cardHeight = 180;
-        const tagAreaHeight = 50; // Height of the area we want to show (tags + some padding)
+        const tagAreaHeight = 70; // Show tags area prominently
         const overlap = tagAreaHeight;
         
-        // Reposition visible cards with calculated overlap
-        visiblePosts.forEach((post, index) => {
+        // Position visible cards with stacking
+        currentVisiblePosts.forEach((post, index) => {
           post.style.top = `${index * overlap}px`;
-          post.style.zIndex = (30 - index).toString(); // Higher z-index for top cards
+          post.style.setProperty('--z-index', (50 - index).toString()); // Higher z-index for top cards
         });
         
         // Update container height based on visible posts
-        const totalHeight = Math.max(600, (visiblePosts.length - 1) * overlap + cardHeight + 50);
-        container.style.minHeight = `${totalHeight}px`;
+        const totalHeight = Math.max(600, (currentVisiblePosts.length - 1) * overlap + cardHeight + 80);
+        if (container) {
+          container.style.minHeight = `${totalHeight}px`;
+          container.classList.remove('has-active'); // Reset active state
+        }
       }
       
       // Initial positioning
@@ -303,11 +412,11 @@ const blogData = {
           // Update button styles
           sectionButtons.forEach(btn => {
             if (btn === button) {
-              btn.classList.add('bg-gray-900', 'text-white', 'dark:bg-gray-100', 'dark:text-gray-900');
-              btn.classList.remove('text-gray-600', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:text-gray-100');
+              btn.classList.add('border-gray-900', 'text-gray-900', 'dark:border-gray-100', 'dark:text-gray-100');
+              btn.classList.remove('text-gray-500', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:text-gray-100', 'border-transparent', 'hover:border-gray-300', 'dark:hover:border-gray-600');
             } else {
-              btn.classList.remove('bg-gray-900', 'text-white', 'dark:bg-gray-100', 'dark:text-gray-900');
-              btn.classList.add('text-gray-600', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:text-gray-100');
+              btn.classList.remove('border-gray-900', 'text-gray-900', 'dark:border-gray-100', 'dark:text-gray-100');
+              btn.classList.add('text-gray-500', 'hover:text-gray-900', 'dark:text-gray-400', 'dark:hover:text-gray-100', 'border-transparent', 'hover:border-gray-300', 'dark:hover:border-gray-600');
             }
           });
           
@@ -318,16 +427,24 @@ const blogData = {
       // Tag filter
       tagButtons.forEach(button => {
         button.addEventListener('click', () => {
-          currentTag = button.getAttribute('data-filter-tag');
+          const clickedTag = button.getAttribute('data-filter-tag');
+          
+          // If clicking the same tag, reset to "all"
+          if (currentTag === clickedTag && clickedTag !== 'all') {
+            currentTag = 'all';
+          } else {
+            currentTag = clickedTag;
+          }
           
           // Update button styles
           tagButtons.forEach(btn => {
-            if (btn === button) {
-              btn.classList.add('bg-gray-100', 'dark:bg-gray-800', 'text-gray-600', 'dark:text-gray-400');
-              btn.classList.remove('text-gray-500', 'dark:text-gray-500', 'hover:bg-gray-100', 'dark:hover:bg-gray-800');
+            const btnTag = btn.getAttribute('data-filter-tag');
+            if (btnTag === currentTag) {
+              btn.classList.add('bg-gray-900', 'text-white', 'dark:bg-gray-100', 'dark:text-gray-900');
+              btn.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-100', 'dark:text-gray-400', 'dark:hover:text-gray-300', 'dark:hover:bg-gray-800');
             } else {
-              btn.classList.remove('bg-gray-100', 'dark:bg-gray-800', 'text-gray-600', 'dark:text-gray-400');
-              btn.classList.add('text-gray-500', 'dark:text-gray-500', 'hover:bg-gray-100', 'dark:hover:bg-gray-800');
+              btn.classList.remove('bg-gray-900', 'text-white', 'dark:bg-gray-100', 'dark:text-gray-900');
+              btn.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-100', 'dark:text-gray-400', 'dark:hover:text-gray-300', 'dark:hover:bg-gray-800');
             }
           });
           

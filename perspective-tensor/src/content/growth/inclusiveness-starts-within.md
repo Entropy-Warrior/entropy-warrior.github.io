@@ -3,7 +3,7 @@ title: "Inclusiveness Starts from Within"
 description: "Reflections on being 'lucky ones' in America while addressing anti-Asian violence and building bridges"
 pubDate: 2021-04-09
 draft: false
-tags: ["leadership", "culture"]
+tags: ["culture", "growth"]
 section: "growth"
 author: "Lin Wang"
 ---
