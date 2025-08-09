@@ -1,8 +1,8 @@
 ---
 title: "The GPT-5 Moment: Why Personal Agents Are the Real Inflection Point"
 description: "As models reach 'good enough' capability, the bottleneck shifts from raw intelligence to system design. Building agents that compound your leverage, not just consume it."
-pubDate: 2025-01-09
-draft: false
+pubDate: 2025-08-09
+draft: true
 author: "Lin Wang"
 ---
 

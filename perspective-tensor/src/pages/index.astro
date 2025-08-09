@@ -54,8 +54,19 @@ const websiteData = {
         I explore the patterns connecting machine intelligence, organizational dynamics, and personal growth — join me in navigating this multidimensional space where technology and humanity converge.
       </p>
     </div>
-    <!-- Transparent clickable overlay with highest z-index -->
-    <a href="/blog" class="absolute inset-0 z-30 cursor-pointer" data-astro-history="push" aria-label="Go to blog"></a>
+    <!-- Transparent clickable overlay covering only the plotting area (excluding text at bottom) -->
+    <a href="/blog" class="group absolute top-0 left-0 right-0 bottom-20 md:bottom-24 lg:bottom-28 z-30 cursor-pointer" data-astro-history="push" aria-label="Go to blog" id="blog-link">
+      <!-- Elegant mouse-tracking tooltip -->
+      <div id="mouse-tooltip" class="fixed opacity-0 transition-opacity duration-500 ease-out pointer-events-none z-40">
+        <div class="bg-white/5 dark:bg-gray-900/10 backdrop-blur-lg border border-blue-100/10 dark:border-blue-300/10 rounded-xl px-3 py-1.5 shadow-2xl ml-3">
+          <div class="text-sm font-light text-blue-800 dark:text-blue-200 tracking-wide whitespace-nowrap">
+            <span id="typewriter-text"></span><span class="typewriter-cursor">|</span>
+          </div>
+        </div>
+        <!-- Elegant arrow pointing left -->
+        <div class="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-0 h-0 border-t-2 border-b-2 border-r-2 border-t-transparent border-b-transparent border-r-white/5 dark:border-r-gray-900/10"></div>
+      </div>
+    </a>
     <style>
         @keyframes fadeInUp {
           0% {
@@ -73,7 +84,131 @@ const websiteData = {
           animation-delay: 0.5s;
           opacity: 0;
         }
+        
+        .typewriter-cursor {
+          animation: blink 1s infinite;
+          opacity: 1;
+        }
+        
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
       </style>
+      
+      <script>
+        let tooltipInitialized = false;
+        let typewriterTimeout;
+        let currentTypewriterIndex = 0;
+        
+        function initializeTooltip() {
+          // Prevent duplicate initialization
+          if (tooltipInitialized) return;
+          
+          const blogLink = document.getElementById('blog-link');
+          const tooltip = document.getElementById('mouse-tooltip');
+          const typewriterText = document.getElementById('typewriter-text');
+          const fullText = "Let's explore these shifting perspectives...";
+          
+          if (blogLink && tooltip && typewriterText) {
+            tooltipInitialized = true;
+            let isHovering = false;
+            
+            // Typewriter effect function
+            function startTypewriter() {
+              typewriterText.textContent = '';
+              currentTypewriterIndex = 0;
+              
+              function typeNextChar() {
+                if (currentTypewriterIndex < fullText.length && isHovering) {
+                  const char = fullText[currentTypewriterIndex];
+                  typewriterText.textContent += char;
+                  currentTypewriterIndex++;
+                  
+                  // Variable typing speed for natural feel
+                  let delay = 45; // Base typing speed
+                  
+                  // Longer pauses for punctuation and spaces
+                  if (char === ',' || char === '.') {
+                    delay = 120 + Math.random() * 100; // 120-220ms pause after punctuation
+                  } else if (char === ' ') {
+                    delay = 80 + Math.random() * 40; // 80-120ms pause after spaces
+                  } else if (char === "'") {
+                    delay = 30 + Math.random() * 20; // Slightly faster for apostrophes
+                  } else {
+                    // Add slight randomness to regular characters
+                    delay = 35 + Math.random() * 25; // 35-60ms for natural variation
+                  }
+                  
+                  typewriterTimeout = setTimeout(typeNextChar, delay);
+                }
+              }
+              
+              // Start typing after a brief delay
+              typewriterTimeout = setTimeout(typeNextChar, 200);
+            }
+            
+            // Show tooltip and start tracking mouse
+            blogLink.addEventListener('mouseenter', function(e) {
+              isHovering = true;
+              tooltip.classList.remove('opacity-0');
+              tooltip.classList.add('opacity-100');
+              updateTooltipPosition(e);
+              startTypewriter();
+            });
+            
+            // Hide tooltip and stop typewriter
+            blogLink.addEventListener('mouseleave', function() {
+              isHovering = false;
+              tooltip.classList.remove('opacity-100');
+              tooltip.classList.add('opacity-0');
+              clearTimeout(typewriterTimeout);
+              typewriterText.textContent = '';
+              currentTypewriterIndex = 0;
+            });
+            
+            // Track mouse movement with throttling for better performance
+            let animationFrameId;
+            blogLink.addEventListener('mousemove', function(e) {
+              if (isHovering) {
+                // Cancel previous frame
+                if (animationFrameId) {
+                  cancelAnimationFrame(animationFrameId);
+                }
+                // Schedule update on next frame
+                animationFrameId = requestAnimationFrame(() => {
+                  updateTooltipPosition(e);
+                });
+              }
+            });
+            
+            // Update tooltip position to the right of cursor
+            function updateTooltipPosition(e) {
+              const offsetX = 12; // Distance to the right of cursor
+              const offsetY = -8; // Slight upward offset
+              tooltip.style.left = (e.clientX + offsetX) + 'px';
+              tooltip.style.top = (e.clientY + offsetY) + 'px';
+              tooltip.style.transform = 'translate(0, -50%)';
+            }
+          }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initializeTooltip);
+        
+        // Re-initialize after Astro page transitions (reset flag first)
+        document.addEventListener('astro:page-load', function() {
+          tooltipInitialized = false;
+          initializeTooltip();
+        });
+        
+        // Fallback for other navigation scenarios
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initializeTooltip);
+        } else {
+          initializeTooltip();
+        }
+      </script>
     </div>
   </div>
 </BaseLayout>
