@@ -131,68 +131,6 @@ export function connectRingNeighbors(
   return edges;
 }
 
-// Brightness calculation utilities
-export function calculateDistanceBasedBrightness(
-  edges: Edge[],
-  positions: Vec3[],
-  brightnessConfig: { min: number; max: number },
-  maxLength?: number
-): number[] {
-  return edges.map(([a, b]) => {
-    const length = distance3D(positions[a], positions[b]);
-    const normalizedLength = maxLength ? 
-      Math.min(length / maxLength, 1) : 
-      length / 2; // fallback normalization
-    return brightnessConfig.min + normalizedLength * (brightnessConfig.max - brightnessConfig.min);
-  });
-}
-
-export function calculateCenterBasedBrightness(
-  edges: Edge[],
-  positions: Vec3[],
-  centerThreshold: number = 0.3
-): number[] {
-  return edges.map(([a, b]) => {
-    const posA = positions[a];
-    const posB = positions[b];
-    
-    const distFromCenterA = Math.sqrt(posA[0] * posA[0] + posA[1] * posA[1] + posA[2] * posA[2]);
-    const distFromCenterB = Math.sqrt(posB[0] * posB[0] + posB[1] * posB[1] + posB[2] * posB[2]);
-    const isNearCenter = distFromCenterA < centerThreshold || distFromCenterB < centerThreshold;
-    
-    return isNearCenter ? 0.4 : 1.0;
-  });
-}
-
-export function createUniformBrightness(edgeCount: number, brightness: number = 0.8): number[] {
-  return new Array(edgeCount).fill(brightness);
-}
-
-// Simple distance-based line filtering and brightness
-export function createDistanceConstrainedEdges(
-  positions: Vec3[],
-  maxDistance: number,
-  brightness: number = 1.0
-): { edges: Edge[]; lineBrightness: number[] } {
-  const edges: Edge[] = [];
-  const lineBrightness: number[] = [];
-  
-  // Check all possible pairs of positions
-  for (let i = 0; i < positions.length; i++) {
-    for (let j = i + 1; j < positions.length; j++) {
-      const dist = distance3D(positions[i], positions[j]);
-      
-      // Only create edge if within distance constraint
-      if (dist <= maxDistance) {
-        edges.push([i, j]);
-        lineBrightness.push(brightness);
-      }
-    }
-  }
-  
-  return { edges, lineBrightness };
-}
-
 // Simple uniform brightness for pre-existing edges
 export function createSimpleBrightness(edgeCount: number, brightness: number = 1.0): number[] {
   return new Array(edgeCount).fill(brightness);
