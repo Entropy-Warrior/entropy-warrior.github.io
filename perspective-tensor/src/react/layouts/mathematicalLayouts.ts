@@ -254,9 +254,24 @@ export const generateMathHelixLayout = (variant?: number): Layout => {
   // Edge patterns specific to each topology
   const edges: [number, number][] = [];
   
-  if (v === 0) { // Disk: spiral connections only between adjacent points
+  if (v === 0) { // Disk: spiral galaxy with arms
+    // Main spiral
     for (let i = 0; i < N - 1; i++) {
       edges.push([i, i + 1]);
+    }
+    
+    // Add radial connections to create spiral arm structure
+    const armsCount = 3; // Number of spiral arms
+    const pointsPerArm = Math.floor(N / armsCount);
+    
+    for (let arm = 0; arm < armsCount; arm++) {
+      const armStart = arm * pointsPerArm;
+      for (let i = 0; i < pointsPerArm - 20; i += 20) {
+        // Connect points along the arm radius
+        if (armStart + i + 20 < N) {
+          edges.push([armStart + i, armStart + i + 20]);
+        }
+      }
     }
   } else if (v === 1) { // Ribbon: grid pattern with Möbius closure
     const W = 27;
@@ -381,6 +396,160 @@ export const generateMathSphericalLayout = (): Layout => {
   
   return makeLayout(positions, edges);
 };
+
+// ═══════════════════════════════════════════════════════════════
+// HYPERCUBE: 4D tesseract projected to 3D space
+// 16 vertices at (±1, ±1, ±1, ±1), 32 edges connecting vertices
+// that differ in exactly one coordinate
+// Perspective projection: P(x,y,z,w) = k·[x,y,z]/(d-w)
+// ═══════════════════════════════════════════════════════════════
+export const generateMathHypercubeLayout = (): Layout => {
+  const ε = noise(0.05);
+  
+  // Generate the 16 vertices of the tesseract at (±1, ±1, ±1, ±1)
+  const tesseractVertices: [number, number, number, number][] = [];
+  for (let i = 0; i < 16; i++) {
+    tesseractVertices.push([
+      (i & 1) ? 1 : -1,      // x: bit 0
+      (i & 2) ? 1 : -1,      // y: bit 1
+      (i & 4) ? 1 : -1,      // z: bit 2
+      (i & 8) ? 1 : -1       // w: bit 3
+    ]);
+  }
+  
+  // Apply 4D rotation for visual interest (rotate in xw and yz planes)
+  const angle1 = Math.random() * Math.PI / 4; // Random rotation angle
+  const angle2 = Math.random() * Math.PI / 4;
+  
+  const rotatedVertices = tesseractVertices.map(([x, y, z, w]) => {
+    // Rotate in xw plane
+    const x1 = x * Math.cos(angle1) - w * Math.sin(angle1);
+    const w1 = x * Math.sin(angle1) + w * Math.cos(angle1);
+    
+    // Rotate in yz plane
+    const y1 = y * Math.cos(angle2) - z * Math.sin(angle2);
+    const z1 = y * Math.sin(angle2) + z * Math.cos(angle2);
+    
+    return [x1, y1, z1, w1] as [number, number, number, number];
+  });
+  
+  // Project 4D vertices to 3D using perspective projection
+  const projectionDistance = 3; // Distance from 4D viewpoint
+  const scale = 6; // Scale factor for visibility
+  
+  const tesseractPositions = rotatedVertices.map(([x, y, z, w]) => {
+    const perspective = projectionDistance - w;
+    return [
+      scale * x / perspective,
+      scale * y / perspective,
+      scale * z / perspective
+    ] as Vec3;
+  });
+  
+  // Create the 32 edges - connect vertices that differ in exactly one coordinate
+  const tesseractEdges: [number, number][] = [];
+  for (let i = 0; i < 16; i++) {
+    for (let j = i + 1; j < 16; j++) {
+      // Count how many bits differ between i and j
+      const diff = i ^ j;
+      const bitCount = ((diff & 1) ? 1 : 0) + ((diff & 2) ? 1 : 0) + 
+                      ((diff & 4) ? 1 : 0) + ((diff & 8) ? 1 : 0);
+      
+      // Connect if exactly one bit differs (adjacent in 4D)
+      if (bitCount === 1) {
+        tesseractEdges.push([i, j]);
+      }
+    }
+  }
+  
+  // Now we have 16 vertices and 32 edges, but we need 729 points
+  // Interpolate points along edges and inside the tesseract
+  const positions: Vec3[] = [];
+  const edges: [number, number][] = [];
+  
+  // Add the 16 main vertices
+  tesseractPositions.forEach(pos => {
+    positions.push([pos[0] + ε(), pos[1] + ε(), pos[2] + ε()]);
+  });
+  
+  // Add points along edges
+  const pointsPerEdge = 20;
+  tesseractEdges.forEach(([a, b]) => {
+    for (let i = 1; i < pointsPerEdge; i++) {
+      const t = i / pointsPerEdge;
+      const pos = lerpVec3(tesseractPositions[a], tesseractPositions[b], t);
+      positions.push([pos[0] + ε(), pos[1] + ε(), pos[2] + ε()]);
+    }
+  });
+  
+  // Fill remaining points inside the tesseract volume
+  while (positions.length < N) {
+    // Random point inside the tesseract bounds
+    const r = 0.3 + 0.7 * Math.random(); // Radius multiplier
+    
+    // Pick a random vertex and move toward center
+    const vertexIdx = Math.floor(Math.random() * 16);
+    const vertex = tesseractPositions[vertexIdx];
+    
+    positions.push([
+      vertex[0] * r + ε(),
+      vertex[1] * r + ε(),
+      vertex[2] * r + ε()
+    ]);
+  }
+  
+  // Create edges for visualization
+  // Map original vertex indices to new positions
+  const vertexMapping = new Map<number, number>();
+  for (let i = 0; i < 16; i++) {
+    vertexMapping.set(i, i);
+  }
+  
+  // Map edge points to their positions
+  let idx = 16;
+  const edgePointMapping = new Map<string, number[]>();
+  tesseractEdges.forEach(([a, b]) => {
+    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+    const points: number[] = [];
+    for (let i = 0; i < pointsPerEdge; i++) {
+      if (i > 0 && i < pointsPerEdge) {
+        points.push(idx++);
+      }
+    }
+    edgePointMapping.set(key, points);
+  });
+  
+  // Connect the tesseract edges properly
+  tesseractEdges.forEach(([a, b]) => {
+    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+    const edgePoints = edgePointMapping.get(key) || [];
+    
+    // Connect vertex a to first edge point
+    if (edgePoints.length > 0) {
+      edges.push([a, edgePoints[0]]);
+      
+      // Connect edge points to each other
+      for (let i = 0; i < edgePoints.length - 1; i++) {
+        edges.push([edgePoints[i], edgePoints[i + 1]]);
+      }
+      
+      // Connect last edge point to vertex b
+      edges.push([edgePoints[edgePoints.length - 1], b]);
+    } else {
+      // Direct connection if no edge points
+      edges.push([a, b]);
+    }
+  });
+  
+  return makeLayout(positions, edges);
+};
+
+// Helper function for linear interpolation
+const lerpVec3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
+  a[0] * (1 - t) + b[0] * t,
+  a[1] * (1 - t) + b[1] * t,
+  a[2] * (1 - t) + b[2] * t
+];
 
 // ═══════════════════════════════════════════════════════════════
 // WORMHOLE: Asymmetric hyperboloid funnel with random parameters

@@ -20,7 +20,8 @@ import {
   generateMathHelixLayout,
   generateMathWormholeLayout,
   generateMathTorusKnotLayout,
-  generateMathSphericalLayout
+  generateMathSphericalLayout,
+  generateMathHypercubeLayout
 } from './layouts/mathematicalLayouts';
 
 // ═══════════════════════════════════════════════════════════════
@@ -61,14 +62,14 @@ const CFG = {
   // Viewport
   viewport: {
     padding: 5,                 // Minimal canvas padding
-    aspectRatio: 0.75           // Increased aspect ratio for taller canvas
+    aspectRatio: 0.9            // Further increased aspect ratio for maximum height
   }
 };
 
 const N = 729; // 9^3 dots for all states
 
 // Data types
-enum State { Tensor, Morph1, Graph, Morph2, Wormhole, Morph3, TorusKnot, Spherical }
+enum State { Tensor, Morph1, Graph, Morph2, Wormhole, Morph3, TorusKnot, Spherical, Hypercube }
 
 interface Machine {
   state: State;
@@ -141,6 +142,7 @@ class StreamlinedAnimation {
   private brownianOffsets: BrownianOffsets;
   private particleMapping: number[] = []; // Maps particle index to position index in current state
   private targetMapping: number[] = []; // Maps particle index to position index in target state
+  private particleSizes: number[] = []; // Random sizes for each particle
   // Rotation state - simplified with a single rotation config object
   private rotation = {
     matrix: [[1,0,0],[0,1,0],[0,0,1]] as number[][],
@@ -163,6 +165,9 @@ class StreamlinedAnimation {
     // Initialize particle mapping - initially particles are at their index positions
     this.particleMapping = Array.from({ length: N }, (_, i) => i);
     this.targetMapping = Array.from({ length: N }, (_, i) => i);
+    
+    // Initialize particle sizes with normal distribution around 1.5
+    this.particleSizes = this.generateParticleSizes();
     
     // Initialize with random states
     const firstState = this.getNextRandomState();
@@ -191,7 +196,8 @@ class StreamlinedAnimation {
     [State.Wormhole]: generateMathWormholeLayout,
     [State.Morph3]: () => generateMathHelixLayout(2), // DNA double helix
     [State.TorusKnot]: generateMathTorusKnotLayout,
-    [State.Spherical]: generateMathSphericalLayout
+    [State.Spherical]: generateMathSphericalLayout,
+    [State.Hypercube]: generateMathHypercubeLayout
   };
 
   private generateLayouts(): void {
@@ -205,24 +211,53 @@ class StreamlinedAnimation {
     }
   }
   
+  private generateParticleSizes(): number[] {
+    // Box-Muller transform for normal distribution
+    const sizes: number[] = [];
+    for (let i = 0; i < N; i++) {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+      while (v === 0) v = Math.random();
+      
+      // Box-Muller transform for normal distribution
+      const normal = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      
+      // Scale to mean=1.5, stddev=0.5, then clamp to [0.5, 3]
+      const size = Math.max(0.5, Math.min(3, 1.5 + normal * 0.5));
+      sizes.push(size);
+    }
+    return sizes;
+  }
+  
   private getNextRandomState(): State {
-    // Get all possible states (now 8 states!)
+    // Get all possible states (now 9 states!)
     const allStates = [
       State.Tensor, State.Morph1, State.Graph, State.Morph2, 
-      State.Wormhole, State.Morph3, State.TorusKnot, State.Spherical
+      State.Wormhole, State.Morph3, State.TorusKnot, State.Spherical, State.Hypercube
     ];
     
     // Filter out states that appeared in the last 2 steps (avoid repetition within 3 steps)
     const recentStates = this.stateHistory.slice(-2);
     const availableStates = allStates.filter(s => !recentStates.includes(s));
     
-    // If somehow all states are excluded (shouldn't happen with 8 states), fallback
+    // If somehow all states are excluded (shouldn't happen with 9 states), fallback
     if (availableStates.length === 0) {
       return allStates[Math.floor(Math.random() * allStates.length)];
     }
     
-    // Pick a random state from available ones
-    return availableStates[Math.floor(Math.random() * availableStates.length)];
+    // Weighted selection - hypercube appears 3x more often
+    const weightedStates: State[] = [];
+    availableStates.forEach(state => {
+      if (state === State.Hypercube) {
+        // Add hypercube 3 times to make it appear more frequently
+        weightedStates.push(state, state, state);
+      } else {
+        weightedStates.push(state);
+      }
+    });
+    
+    // Pick a random state from weighted available ones
+    return weightedStates[Math.floor(Math.random() * weightedStates.length)];
   }
   
   updateUnifiedScale(width: number, height: number): void {
@@ -393,7 +428,7 @@ class StreamlinedAnimation {
         // Find states that are not in current, next, or recent history
         const allStates = [
           State.Tensor, State.Morph1, State.Graph, State.Morph2, 
-          State.Wormhole, State.Morph3, State.TorusKnot, State.Spherical
+          State.Wormhole, State.Morph3, State.TorusKnot, State.Spherical, State.Hypercube
         ];
         const recentlyUsed = new Set([this.machine.state, this.machine.next, ...this.stateHistory.slice(-2)]);
         const statesToRegenerate = allStates.filter(s => !recentlyUsed.has(s));
@@ -528,8 +563,8 @@ class StreamlinedAnimation {
     const isMorphing = this.machine.phase === 'morph';
     const easedT = isMorphing ? easeInOutQuart(this.machine.t) : 0;
     
-    // Use the unified scale for all states (no snapping), multiplied by 1.2 for larger display
-    const scale = this.unifiedScale * 1.2;
+    // Use the unified scale for all states (no snapping)
+    const scale = this.unifiedScale * 1;
 
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
@@ -613,7 +648,7 @@ class StreamlinedAnimation {
       }
     });
 
-    // Draw particles with continuous brownian motion
+    // Draw particles with continuous brownian motion and random sizes
     ctx.fillStyle = colors.nodeColor;
     ctx.globalAlpha = 1.0;
     
@@ -624,8 +659,11 @@ class StreamlinedAnimation {
       const x = centerX + (pos[0] + this.brownianOffsets.x[particleIdx] * CFG.brownian.amplitude - modelCenterX) * scale * widthScale;
       const y = centerY + (pos[1] + this.brownianOffsets.y[particleIdx] * CFG.brownian.amplitude - modelCenterY) * scale * heightScale;
       
+      // Use the random size for this particle
+      const radius = this.particleSizes[particleIdx];
+      
       ctx.beginPath();
-      ctx.arc(x, y, CFG.particle.radius, 0, Math.PI * 2); 
+      ctx.arc(x, y, radius, 0, Math.PI * 2); 
       ctx.fill();
     }
   }
@@ -669,9 +707,9 @@ export default function StreamlinedAnimationCanvas() {
       
       // Calculate height based on viewport, leaving room for header, footer, and text
       const viewportHeight = window.innerHeight;
-      // Reserve space for: header (~64px), footer (~64px), text (~80px), padding (~80px)
-      const reservedHeight = 288;
-      const maxCanvasHeight = Math.max(viewportHeight - reservedHeight, 300);
+      // Reserve less space to give the plot more room at the top
+      const reservedHeight = 200; // Reduced from 288
+      const maxCanvasHeight = Math.max(viewportHeight - reservedHeight, 400); // Increased minimum height
       
       // Use the smaller of: aspect-ratio-based height or max available height
       const aspectHeight = Math.round(parentWidth * CFG.viewport.aspectRatio);
