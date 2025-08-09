@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StructuredData from '../components/StructuredData.astro';
-import SimplifiedNetworkCanvas from '../react/SimplifiedNetworkCanvas.tsx';
+import StreamlinedAnimationCanvas from '../react/StreamlinedAnimationCanvas.tsx';
 import { getCollection } from 'astro:content';
 
 const posts = await getCollection('blog', ({ data }) => data.draft !== true);
@@ -31,9 +31,11 @@ const websiteData = {
 ---
 <BaseLayout title="Home">
   <StructuredData type="WebSite" data={websiteData} />
-  <div class="py-12 md:py-16 text-center max-w-3xl mx-auto px-4">
-    <section class="mb-6" transition:name="hero" transition:animate="fade">
-      <SimplifiedNetworkCanvas client:load />
+  <div class="py-12 md:py-16 text-center max-w-4xl mx-auto px-4">
+    <section class="mb-6 flex justify-center items-center" transition:name="hero" transition:animate="fade">
+      <div class="w-full max-w-2xl">
+        <StreamlinedAnimationCanvas client:load />
+      </div>
     </section>
     <div>
       <p class="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed max-w-2xl mx-auto font-light tracking-wide text-center">
