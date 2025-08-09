@@ -202,13 +202,12 @@ const morphRibbon = (ε: () => number): Vec3[] => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MORPH HELIX: Classic DNA double helix structure
+// MORPH HELIX: Classic DNA double helix structure (no bridges)
 // Ψ₃(t,s) = [R·cos(ωt + sπ), R·sin(ωt + sπ), h·t]
 // ═══════════════════════════════════════════════════════════════
 const morphHelix = (ε: () => number): Vec3[] => {
   const positions: Vec3[] = [];
-  const pointsPerStrand = Math.floor(N * 0.45); // 45% per strand
-  const bridgePoints = N - 2 * pointsPerStrand; // 10% for bridges
+  const pointsPerStrand = Math.floor(N / 2); // 50% per strand - no bridge points
   
   // Generate two helical strands
   for (let strand = 0; strand < 2; strand++) {
@@ -228,29 +227,15 @@ const morphHelix = (ε: () => number): Vec3[] => {
     }
   }
   
-  // Add base-pair bridges between strands at regular intervals
-  const bridgeInterval = Math.floor(pointsPerStrand / (bridgePoints + 1));
-  for (let i = 0; i < bridgePoints; i++) {
-    const idx = (i + 1) * bridgeInterval;
-    if (idx < pointsPerStrand) {
-      const p1 = positions[idx];
-      const p2 = positions[idx + pointsPerStrand];
-      
-      // Create intermediate points along the bridge
-      const t = (i % 3) / 2; // Vary position along bridge
-      positions.push([
-        p1[0] * (1 - t) + p2[0] * t + ε(),
-        p1[1] * (1 - t) + p2[1] * t + ε(),
-        p1[2] * (1 - t) + p2[2] * t + ε()
-      ] as Vec3);
-    }
-  }
-  
-  // Fill any remaining points
+  // Fill any remaining points by slightly varying existing points
   while (positions.length < N) {
-    const idx = positions.length % pointsPerStrand;
+    const idx = positions.length % (2 * pointsPerStrand);
     const p = positions[idx];
-    positions.push([p[0] + ε(), p[1] + ε(), p[2] + ε()] as Vec3);
+    positions.push([
+      p[0] + ε() * 0.5,
+      p[1] + ε() * 0.5,
+      p[2] + ε() * 0.5
+    ] as Vec3);
   }
   
   return positions;
@@ -269,10 +254,9 @@ export const generateMathHelixLayout = (variant?: number): Layout => {
   // Edge patterns specific to each topology
   const edges: [number, number][] = [];
   
-  if (v === 0) { // Disk: spiral connections
+  if (v === 0) { // Disk: spiral connections only between adjacent points
     for (let i = 0; i < N - 1; i++) {
       edges.push([i, i + 1]);
-      if (i % 13 === 0 && i + 13 < N) edges.push([i, i + 13]);
     }
   } else if (v === 1) { // Ribbon: grid pattern with Möbius closure
     const W = 27;
@@ -308,16 +292,107 @@ export const generateMathHelixLayout = (variant?: number): Layout => {
   return makeLayout(positions, edges);
 };
 // ═══════════════════════════════════════════════════════════════
+// TORUS KNOT: Elegant curve wrapping around a torus (p,q)-knot
+// K(t) = [(R + r·cos(qt))·cos(pt), (R + r·cos(qt))·sin(pt), r·sin(qt)]
+// ═══════════════════════════════════════════════════════════════
+export const generateMathTorusKnotLayout = (): Layout => {
+  const ε = noise(0.1);
+  
+  // Random torus knot parameters for variety
+  const p = 2 + Math.floor(Math.random() * 2); // 2 or 3 (wraps around torus axis)
+  const q = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 (wraps through hole)
+  const R = 8; // Major radius
+  const r = 3; // Minor radius
+  
+  const positions = Array.from({length: N}, (_, i) => {
+    const t = (i / N) * 2 * Math.PI;
+    
+    // Torus knot parametric equations
+    const x = (R + r * Math.cos(q * t)) * Math.cos(p * t);
+    const y = (R + r * Math.cos(q * t)) * Math.sin(p * t);
+    const z = r * Math.sin(q * t);
+    
+    return [x + ε(), y + ε(), z + ε()] as Vec3;
+  });
+  
+  // Connect adjacent points along the knot
+  const edges: [number, number][] = [];
+  for (let i = 0; i < N - 1; i++) {
+    edges.push([i, i + 1]);
+  }
+  // Close the loop
+  edges.push([N - 1, 0]);
+  
+  return makeLayout(positions, edges);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SPHERICAL HARMONICS: Beautiful oscillations on sphere surface
+// S(θ,φ) = r(θ,φ)·[sin(θ)cos(φ), sin(θ)sin(φ), cos(θ)]
+// where r(θ,φ) = R·(1 + A·Y_lm(θ,φ))
+// ═══════════════════════════════════════════════════════════════
+export const generateMathSphericalLayout = (): Layout => {
+  const ε = noise(0.15);
+  
+  // Random spherical harmonic parameters
+  const l = 3 + Math.floor(Math.random() * 3); // Degree (3-5)
+  const m = Math.floor(Math.random() * (l + 1)); // Order (0 to l)
+  const A = 0.3 + Math.random() * 0.3; // Amplitude (0.3-0.6)
+  const R = 10; // Base radius
+  
+  const positions: Vec3[] = [];
+  const gridSize = Math.ceil(Math.sqrt(N));
+  
+  for (let i = 0; i < N; i++) {
+    const u = (i % gridSize) / (gridSize - 1);
+    const v = Math.floor(i / gridSize) / (gridSize - 1);
+    
+    // Spherical coordinates
+    const θ = Math.PI * v; // Polar angle (0 to π)
+    const φ = 2 * Math.PI * u; // Azimuthal angle (0 to 2π)
+    
+    // Simple spherical harmonic approximation
+    const harmonic = Math.sin(l * θ) * Math.cos(m * φ);
+    const r = R * (1 + A * harmonic);
+    
+    // Convert to Cartesian
+    const x = r * Math.sin(θ) * Math.cos(φ);
+    const y = r * Math.sin(θ) * Math.sin(φ);
+    const z = r * Math.cos(θ);
+    
+    positions.push([x + ε(), y + ε(), z + ε()] as Vec3);
+  }
+  
+  // Create a mesh grid on the sphere
+  const edges: [number, number][] = [];
+  for (let i = 0; i < N; i++) {
+    const row = Math.floor(i / gridSize);
+    const col = i % gridSize;
+    
+    // Connect to right neighbor
+    if (col < gridSize - 1) {
+      edges.push([i, i + 1]);
+    }
+    // Connect to bottom neighbor
+    if (row < gridSize - 1 && i + gridSize < N) {
+      edges.push([i, i + gridSize]);
+    }
+  }
+  
+  return makeLayout(positions, edges);
+};
+
+// ═══════════════════════════════════════════════════════════════
 // WORMHOLE: Asymmetric hyperboloid funnel with random parameters
 // H(u,v) = [r(v)·(1+αsin(u))·cos(u), r(v)·(1+αsin(u))·sin(u), v·h]
-// where r(v) = √(r₀² + (v/a)²) creates hyperboloid shape
+// where r(v) = √(r0² + (v/a)²) creates hyperboloid shape
 // ═══════════════════════════════════════════════════════════════
 export const generateMathWormholeLayout = (): Layout => {
   const ε = noise(0.15);
   
   // Random hyperboloid parameters for variety
-  const r0 = 1.5 + Math.random() * 1.5; // Throat radius (1.5-3)
-  const a = 0.3 + Math.random() * 0.4; // Shape parameter (0.3-0.7)
+  const r0 = 0.8 + Math.random() * 0.7; // Throat radius (0.8-1.5) - much narrower
+  const a = 0.15 + Math.random() * 0.2; // Shape parameter (0.15-0.35) - steeper slope
   const α = 0.2 + Math.random() * 0.3; // Asymmetry strength (0.2-0.5)
   
   // Single equation: asymmetric hyperboloid surface
@@ -334,7 +409,7 @@ export const generateMathWormholeLayout = (): Layout => {
     return [
       r * asym * Math.cos(θ) + ε(),
       r * asym * Math.sin(θ) + ε(),
-      v * 8 + ε() // Vertical stretch
+      v * 12 + ε() // Increased vertical stretch for more dramatic slope
     ] as Vec3;
   });
   
