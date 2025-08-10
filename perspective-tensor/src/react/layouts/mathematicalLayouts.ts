@@ -1,6 +1,6 @@
-import type { Vec3 } from '../utils/mathUtils';
-import type { Layout } from '../utils/layoutUtils';
-import { centerPositionsAndGetBounds, createSimpleBrightness } from '../utils/layoutUtils';
+import type { Vec3 } from '../animation/core/types';
+import type { Layout } from '../animation/utils/layoutUtils';
+import { centerPositionsAndGetBounds, createSimpleBrightness } from '../animation/utils/layoutUtils';
 
 const DEFAULT_N = 1000; // Default point count (legacy)
 const TRANSFORM = { targetSize: 20, rot: { x: -0.3, y: 0.4 } };

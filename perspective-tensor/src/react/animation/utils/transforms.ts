@@ -1,5 +1,8 @@
 import type { Vec3, Matrix3x3 } from '../core/types';
 
+// Re-export types for convenience
+export type { Vec3, Matrix3x3 } from '../core/types';
+
 // ═══════════════════════════════════════════════════════════════
 // 3D TRANSFORMATION UTILITIES
 // ═══════════════════════════════════════════════════════════════
@@ -326,4 +329,35 @@ export function noiseDeform(positions: Vec3[], amplitude: number = 0.1): Vec3[] 
     p[1] + (Math.random() - 0.5) * amplitude,
     p[2] + (Math.random() - 0.5) * amplitude
   ] as Vec3);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADDITIONAL UTILITIES
+// ═══════════════════════════════════════════════════════════════
+
+// Get a perpendicular axis to the given axis
+export function getPerpendicularAxis(axis: Vec3): Vec3 {
+  let perpAxis: Vec3;
+  if (Math.abs(axis[2]) < 0.9) {
+    perpAxis = [-axis[1], axis[0], 0];
+  } else {
+    perpAxis = [0, -axis[2], axis[1]];
+  }
+  
+  return normalizeVec3(perpAxis);
+}
+
+// Easing functions
+export function easeInOutQuart(t: number): number {
+  return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+}
+
+// Random normal distribution (Box-Muller transform)
+export function randomNormal(mean: number = 0, stddev: number = 1): number {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+  while (v === 0) v = Math.random();
+  
+  const normal = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return mean + normal * stddev;
 }

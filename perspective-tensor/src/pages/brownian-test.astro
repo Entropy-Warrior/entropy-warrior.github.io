@@ -1,0 +1,81 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Brownian Motion Test">
+  <div id="test-container" style="padding: 20px;">
+    <h1>Brownian Motion Test</h1>
+    <canvas id="test-canvas" width="800" height="400" style="border: 1px solid #ccc;"></canvas>
+    <div id="status" style="margin-top: 10px;"></div>
+  </div>
+  
+  <script>
+    import { createBrownianOffsets, updateBrownianMotion } from '../react/utils/canvasUtils';
+    
+    const canvas = document.getElementById('test-canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const status = document.getElementById('status')!;
+    
+    // Create 10 test particles
+    const N = 10;
+    const offsets = createBrownianOffsets(N);
+    const basePositions = Array.from({length: N}, (_, i) => ({
+      x: 100 + i * 60,
+      y: 200
+    }));
+    
+    let frame = 0;
+    let lastOffsets = offsets.x.map(x => x);
+    
+    function animate() {
+      frame++;
+      
+      // Update Brownian motion
+      updateBrownianMotion(offsets, {
+        amplitude: 20,
+        speed: 0.15,
+        damping: 0
+      });
+      
+      // Check if offsets changed
+      const changed = offsets.x.some((x, i) => Math.abs(x - lastOffsets[i]) > 0.001);
+      lastOffsets = [...offsets.x];
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw particles
+      ctx.fillStyle = 'blue';
+      for (let i = 0; i < N; i++) {
+        const x = basePositions[i].x + offsets.x[i];
+        const y = basePositions[i].y + offsets.y[i];
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Update status every 30 frames
+      if (frame % 30 === 0) {
+        const variance = offsets.x.reduce((acc, val) => acc + Math.abs(val), 0) / N;
+        status.innerHTML = `
+          Frame: ${frame}<br>
+          Offsets changed: ${changed ? '✅ YES' : '❌ NO'}<br>
+          Average movement: ${variance.toFixed(3)}<br>
+          Sample offsets: ${offsets.x.slice(0, 3).map(v => v.toFixed(2)).join(', ')}
+        `;
+        
+        console.log('Brownian test:', {
+          frame,
+          changed,
+          variance,
+          offsets: offsets.x.slice(0, 3)
+        });
+      }
+      
+      requestAnimationFrame(animate);
+    }
+    
+    animate();
+  </script>
+</BaseLayout>

@@ -1,11 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { ShapeTestLab } from '../react/components/ShapeTestLab.tsx';
+import { ShapeTestLabWebGL } from '../react/components/ShapeTestLabWebGL.tsx';
 ---
 
 <BaseLayout title="Shape Testing Lab">
   <div id="shape-test-container">
-    <ShapeTestLab client:only="react" />
+    <ShapeTestLabWebGL client:only="react" />
   </div>
 </BaseLayout>
 

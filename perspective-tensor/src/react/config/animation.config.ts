@@ -23,9 +23,9 @@ export const ANIMATION_CONFIG = {
   
   // Brownian motion
   brownian: { 
-    amplitude: 1.5,           // Motion amplitude
-    speed: 0.008,               // Motion speed (reduced by 50%)
-    damping: 0.997             // Motion damping (increased for smoother motion)
+    amplitude: 0.8,           // Motion amplitude - max jitter distance from original position
+    speed: 0.3,               // Update probability per frame (0.3 = 30% of frames get new positions)
+    damping: 0                // No damping - true continuous Brownian motion
   },
   
   // Particles

@@ -43,15 +43,31 @@ export function createBrownianOffsets(nodeCount: number): BrownianOffsets {
 
 export function updateBrownianMotion(
   offsets: BrownianOffsets,
-  config: { amplitude: number; speed: number; damping?: number }
+  config: { amplitude: number; speed: number; damping?: number },
+  particleSizes?: number[]
 ): void {
-  const brownianStep = config.speed * config.amplitude;
-  const damping = config.damping ?? 0.995;
+  // Base update probability from speed config
+  const baseUpdateProbability = Math.min(1, config.speed);
   
   for (let i = 0; i < offsets.x.length; i++) {
-    offsets.x[i] = offsets.x[i] * damping + (Math.random() - 0.5) * brownianStep;
-    offsets.y[i] = offsets.y[i] * damping + (Math.random() - 0.5) * brownianStep;
-    offsets.z[i] = offsets.z[i] * damping + (Math.random() - 0.5) * brownianStep;
+    // Size-dependent Brownian motion: smaller particles move more and update more frequently
+    // Using Einstein-Smoluchowski equation: D ∝ 1/√(size)
+    const particleSize = particleSizes ? particleSizes[i] : 1.5; // Default size if not provided
+    const sizeFactor = 1 / Math.sqrt(Math.max(particleSize, 0.1)); // Avoid division by zero
+    
+    // Smaller particles update more frequently
+    const updateProbability = Math.min(1, baseUpdateProbability * sizeFactor);
+    
+    // Only update this particle if random chance allows (size-dependent probability)
+    if (Math.random() < updateProbability) {
+      // Size-dependent amplitude: smaller particles move more
+      const sizeAdjustedAmplitude = config.amplitude * sizeFactor * 0.5; // Scale down a bit
+      
+      // Pure random jitter with size-adjusted amplitude
+      offsets.x[i] = (Math.random() - 0.5) * sizeAdjustedAmplitude;
+      offsets.y[i] = (Math.random() - 0.5) * sizeAdjustedAmplitude;
+      offsets.z[i] = (Math.random() - 0.5) * sizeAdjustedAmplitude;
+    }
   }
 }
 

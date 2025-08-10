@@ -16,13 +16,10 @@ import {
   generateHypercube,
   SHAPE_EQUATIONS
 } from '../animation/shapes/mathematical';
-import { 
-  createBrownianState, 
-  updateBrownianMotion, 
-  applyBrownianToPositions,
-  BROWNIAN_PRESETS,
-  type BrownianState
-} from '../animation/utils/brownian';
+// Simple Brownian motion state for true per-particle jitter
+interface SimpleBrownianState {
+  offsets: Vec3[];
+}
 import {
   type ThemeColor,
   type ThemeColors,
@@ -69,7 +66,6 @@ interface ShapeVisualizerProps {
   brownianMotion: boolean;
   brownianAmplitude: number;
   brownianSpeed: number;
-  brownianDamping: number;
 }
 
 function ShapeVisualizer({ 
@@ -86,8 +82,7 @@ function ShapeVisualizer({
   rotationSpeed,
   brownianMotion,
   brownianAmplitude,
-  brownianSpeed,
-  brownianDamping
+  brownianSpeed
 }: ShapeVisualizerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const pointsRef = useRef<THREE.Points>(null);
@@ -108,14 +103,18 @@ function ShapeVisualizer({
     }
   }, [shape.id, shape.positions.length]);
   
-  // Initialize Brownian motion state - reset when config changes
-  const brownianState = useRef<BrownianState>(createBrownianState(shape.positions.length));
+  // Initialize simple Brownian motion state
+  const brownianState = useRef<SimpleBrownianState>({
+    offsets: Array(shape.positions.length).fill(null).map(() => [0, 0, 0] as Vec3)
+  });
   const originalPositions = useRef<Vec3[]>(shape.positions);
   
   // Reset Brownian state when settings change or motion is toggled
   useEffect(() => {
-    brownianState.current = createBrownianState(shape.positions.length);
-  }, [shape.positions.length, brownianMotion, brownianAmplitude, brownianSpeed, brownianDamping]);
+    brownianState.current = {
+      offsets: Array(shape.positions.length).fill(null).map(() => [0, 0, 0] as Vec3)
+    };
+  }, [shape.positions.length, brownianMotion]);
   
   // Generate random sizes for each point
   const pointSizes = useMemo(() => {
@@ -139,17 +138,44 @@ function ShapeVisualizer({
     if (pointsRef.current) {
       let displayPositions = originalPositions.current;
       
-      // Apply Brownian motion as an overlay if enabled
+      // Apply true per-particle Brownian motion with size-dependent behavior
       if (brownianMotion) {
-        const config = {
-          amplitude: brownianAmplitude,
-          speed: brownianSpeed,
-          damping: brownianDamping
-        };
-        updateBrownianMotion(brownianState.current, config, delta * 1000);
+        // Base update interval from speed parameter
+        const baseUpdateInterval = 1.0 / (brownianSpeed * 60); // Convert speed to seconds
         
-        // Apply Brownian offsets to create display positions (non-destructive)
-        displayPositions = applyBrownianToPositions(originalPositions.current, brownianState.current);
+        // Update each particle independently based on its size
+        for (let i = 0; i < brownianState.current.offsets.length; i++) {
+          // Size-dependent Brownian motion: smaller particles move more and update more frequently
+          // Using Einstein-Smoluchowski equation: D ∝ 1/√(size)
+          const particleSize = pointSizes[i];
+          const sizeFactor = 1 / Math.sqrt(Math.max(particleSize, 0.1));
+          
+          // Smaller particles update more frequently
+          const particleUpdateInterval = baseUpdateInterval / sizeFactor;
+          
+          // Check if this particle should update (each particle has its own update timing)
+          if (Math.random() < (delta / particleUpdateInterval)) {
+            // Size-dependent amplitude: smaller particles move more
+            const sizeAdjustedAmplitude = brownianAmplitude * sizeFactor * 0.5;
+            
+            // Pure random jitter with size-adjusted amplitude
+            brownianState.current.offsets[i] = [
+              (Math.random() - 0.5) * sizeAdjustedAmplitude,
+              (Math.random() - 0.5) * sizeAdjustedAmplitude,
+              (Math.random() - 0.5) * sizeAdjustedAmplitude
+            ];
+          }
+        }
+        
+        // Apply offsets to positions
+        displayPositions = originalPositions.current.map((pos, i) => {
+          const offset = brownianState.current.offsets[i];
+          return [
+            pos[0] + offset[0],
+            pos[1] + offset[1],
+            pos[2] + offset[2]
+          ] as Vec3;
+        });
       }
       
       // Update point positions
@@ -208,66 +234,34 @@ function ShapeVisualizer({
     return geometry;
   }, [shape]);
   
-  // Custom shader material for edges with dash support
+  // Create edge material based on style
   const edgesMaterial = useMemo(() => {
-    // Set dash parameters based on style
-    let dashSize = 1.0;
-    let gapSize = 0.0;
-    let scale = 10.0;
-    
-    if (edgeStyle === 'dashed') {
-      dashSize = 0.3;
-      gapSize = 0.2;
-      scale = 15.0;
-    } else if (edgeStyle === 'dotted') {
-      dashSize = 0.05;
-      gapSize = 0.15;
-      scale = 30.0;
+    if (edgeStyle === 'solid') {
+      // Use basic material for solid lines
+      return new THREE.LineBasicMaterial({
+        color: edgeColor,
+        opacity: edgeOpacity,
+        transparent: true
+      });
+    } else {
+      // Use dashed material for dashed/dotted lines
+      let dashSize = 0.3;
+      let gapSize = 0.2;
+      
+      if (edgeStyle === 'dotted') {
+        dashSize = 0.05;
+        gapSize = 0.15;
+      }
+      
+      return new THREE.LineDashedMaterial({
+        color: edgeColor,
+        opacity: edgeOpacity,
+        transparent: true,
+        dashSize: dashSize,
+        gapSize: gapSize,
+        scale: 1
+      });
     }
-    
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        color: { value: new THREE.Color(edgeColor) },
-        opacity: { value: edgeOpacity },
-        dashSize: { value: dashSize },
-        gapSize: { value: gapSize },
-        scale: { value: scale }
-      },
-      vertexShader: `
-        varying vec3 vPosition;
-        void main() {
-          vPosition = position;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 color;
-        uniform float opacity;
-        uniform float dashSize;
-        uniform float gapSize;
-        uniform float scale;
-        
-        varying vec3 vPosition;
-        
-        void main() {
-          // For solid lines, don't discard any fragments
-          if (gapSize > 0.0) {
-            // Calculate distance along the line for dashing
-            float totalSize = dashSize + gapSize;
-            float modulo = mod(length(vPosition) * scale, totalSize);
-            
-            // Discard fragments in gaps for dashed/dotted line effect
-            if (modulo > dashSize) {
-              discard;
-            }
-          }
-          
-          gl_FragColor = vec4(color, opacity);
-        }
-      `,
-      transparent: true,
-      linewidth: 1
-    });
   }, [edgeColor, edgeOpacity, edgeStyle]);
   
   // Custom shader material for variable point sizes
@@ -298,13 +292,15 @@ function ShapeVisualizer({
           vec2 xy = gl_PointCoord.xy - vec2(0.5);
           float r = length(xy);
           if (r > 0.5) discard;
-          float alpha = 1.0 - smoothstep(0.3, 0.5, r);
+          // Smooth edge for anti-aliasing
+          float alpha = 1.0 - smoothstep(0.45, 0.5, r);
+          // Apply opacity directly without double multiplication
           gl_FragColor = vec4(color, alpha * opacity);
         }
       `,
       transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
+      blending: THREE.NormalBlending,
+      depthWrite: true
     });
   }, [pointColor, pointSize, pointOpacity]);
   
@@ -323,16 +319,18 @@ function ShapeVisualizer({
       <points ref={pointsRef} geometry={pointsGeometry} material={pointsMaterial} />
       
       {/* Edges */}
-      {showEdges && edgesGeometry && (
-        <lineSegments ref={edgesRef} geometry={edgesGeometry}>
-          <lineBasicMaterial 
-            color={edgeColor} 
-            transparent={true}
-            opacity={edgeOpacity}
-            // Note: linewidth doesn't work in most WebGL implementations
-            // We'll need to use a custom shader or mesh lines for thickness
-          />
-        </lineSegments>
+      {showEdges && edgesGeometry && edgesMaterial && (
+        <lineSegments 
+          ref={(lineSegments) => {
+            if (lineSegments && edgeStyle !== 'solid') {
+              // Compute line distances for dashed lines to work
+              lineSegments.computeLineDistances();
+            }
+            edgesRef.current = lineSegments;
+          }}
+          geometry={edgesGeometry} 
+          material={edgesMaterial} 
+        />
       )}
     </group>
   );
@@ -365,7 +363,6 @@ interface ShapeSettings {
   brownianMotion: boolean;
   brownianAmplitude: number;
   brownianSpeed: number;
-  brownianDamping: number;
 }
 
 // Debug mode flag - set to true to enable console logging
@@ -381,6 +378,56 @@ interface AllShapeSettings {
       // Add more shape-specific settings here if needed
     };
   };
+}
+
+// Collapsible Section Component
+function CollapsibleSection({ 
+  title, 
+  isExpanded, 
+  onToggle, 
+  children,
+  theme 
+}: { 
+  title: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  theme: 'dark' | 'light';
+}) {
+  const textColor = theme === 'dark' ? '#fff' : '#000';
+  const borderColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+  
+  return (
+    <div style={{ marginBottom: '20px', borderBottom: `1px solid ${borderColor}`, paddingBottom: '10px' }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          padding: '10px',
+          background: 'transparent',
+          color: textColor,
+          border: 'none',
+          borderBottom: `1px solid ${borderColor}`,
+          cursor: 'pointer',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          textAlign: 'left',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: isExpanded ? '15px' : '0'
+        }}
+      >
+        {title}
+        <span style={{ fontSize: '12px' }}>{isExpanded ? '▼' : '▶'}</span>
+      </button>
+      {isExpanded && (
+        <div style={{ paddingLeft: '10px' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ShapeTestLab() {
@@ -419,9 +466,8 @@ export function ShapeTestLab() {
         rotationSpeed: 0.5,
         theme: 'dark' as const,
         brownianMotion: false,
-        brownianAmplitude: 1.5,
-        brownianSpeed: 0.008,
-        brownianDamping: 0.997
+        brownianAmplitude: 0.1,
+        brownianSpeed: 1.0
       },
       shapeSpecific: {}
     };
@@ -465,8 +511,7 @@ export function ShapeTestLab() {
   const [theme, setTheme] = useState<'dark' | 'light'>(allSettings.globalSettings.theme);
   const [brownianMotion, setBrownianMotion] = useState(allSettings.globalSettings.brownianMotion);
   const [brownianAmplitude, setBrownianAmplitude] = useState(allSettings.globalSettings.brownianAmplitude);
-  const [brownianSpeed, setBrownianSpeed] = useState(allSettings.globalSettings.brownianSpeed);
-  const [brownianDamping, setBrownianDamping] = useState(allSettings.globalSettings.brownianDamping);
+  const [brownianSpeed, setBrownianSpeed] = useState(allSettings.globalSettings.brownianSpeed || 1.0);
   const [regenerateKey, setRegenerateKey] = useState(0);
   const [savedPresets, setSavedPresets] = useState<Record<string, ShapeSettings>>({});
   
@@ -566,20 +611,18 @@ export function ShapeTestLab() {
     pointOpacity,
     edgeColor: edgeColorTheme,
     edgeOpacity,
-    edgeWidth,
     edgeStyle,
     autoRotate,
     rotationSpeed,
     theme,
     brownianMotion,
     brownianAmplitude,
-    brownianSpeed,
-    brownianDamping
+    brownianSpeed
   }), [
     showEdges, showGrid, showStats,
     pointSize, pointSizeVariation, pointColorTheme, pointOpacity,
-    edgeColorTheme, edgeOpacity, edgeWidth, edgeStyle, autoRotate, rotationSpeed,
-    theme, brownianMotion, brownianAmplitude, brownianSpeed, brownianDamping
+    edgeColorTheme, edgeOpacity, edgeStyle, autoRotate, rotationSpeed,
+    theme, brownianMotion, brownianAmplitude, brownianSpeed
   ]);
   
   // Apply settings
@@ -652,9 +695,6 @@ export function ShapeTestLab() {
     if (settings.brownianSpeed !== undefined) {
       setBrownianSpeed(settings.brownianSpeed);
     }
-    if (settings.brownianDamping !== undefined) {
-      setBrownianDamping(settings.brownianDamping);
-    }
   };
   
   // Export complete settings as JSON
@@ -677,8 +717,7 @@ export function ShapeTestLab() {
         theme,
         brownianMotion,
         brownianAmplitude,
-        brownianSpeed,
-        brownianDamping
+        brownianSpeed
       },
       shapeSpecific: shapeSpecificSettings
     };
@@ -721,8 +760,7 @@ export function ShapeTestLab() {
           setTheme(imported.globalSettings.theme);
           setBrownianMotion(imported.globalSettings.brownianMotion);
           setBrownianAmplitude(imported.globalSettings.brownianAmplitude);
-          setBrownianSpeed(imported.globalSettings.brownianSpeed);
-          setBrownianDamping(imported.globalSettings.brownianDamping);
+          setBrownianSpeed(imported.globalSettings.brownianSpeed || 1.0);
         }
         
         // Apply shape-specific settings
@@ -758,6 +796,17 @@ export function ShapeTestLab() {
     }
   }, []);
   
+  // Apply theme to document body
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.body.style.backgroundColor = '#0a0a0a';
+      document.body.style.color = '#ffffff';
+    } else {
+      document.body.style.backgroundColor = '#ffffff';  
+      document.body.style.color = '#000000';
+    }
+  }, [theme]);
+  
   // Auto-save ALL settings to localStorage whenever ANY setting changes
   useEffect(() => {
     const completeSettings: AllShapeSettings = {
@@ -778,8 +827,7 @@ export function ShapeTestLab() {
         theme,
         brownianMotion,
         brownianAmplitude,
-        brownianSpeed,
-        brownianDamping
+        brownianSpeed
       },
       shapeSpecific: shapeSpecificSettings
     };
@@ -801,8 +849,8 @@ export function ShapeTestLab() {
     selectedShape, shapeSpecificSettings,
     showEdges, showGrid, showStats,
     pointSize, pointSizeVariation, pointColorTheme, pointOpacity,
-    edgeColorTheme, edgeOpacity, edgeWidth, autoRotate, rotationSpeed,
-    theme, brownianMotion, brownianAmplitude, brownianSpeed, brownianDamping
+    edgeColorTheme, edgeOpacity, edgeStyle, autoRotate, rotationSpeed,
+    theme, brownianMotion, brownianAmplitude, brownianSpeed
   ]);
   
   // Save preset (includes selectedShape for presets)
@@ -833,6 +881,15 @@ export function ShapeTestLab() {
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
+  
+  // Collapsible sections state
+  const [expandedSections, setExpandedSections] = useState({
+    shape: true,
+    appearance: true,
+    animation: false,
+    camera: false,
+    settings: false
+  });
   
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
@@ -911,470 +968,575 @@ export function ShapeTestLab() {
           <h2 style={{ color: textColor, fontSize: '24px', margin: 0 }}>
             Shape Testing Lab
           </h2>
+        </div>
+        
+        {/* Shape Selection Section */}
+        <CollapsibleSection
+          title="Shape Selection"
+          isExpanded={expandedSections.shape}
+          onToggle={() => setExpandedSections(prev => ({ ...prev, shape: !prev.shape }))}
+          theme={theme}
+        >
+          {/* Shape Selection */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '8px' }}>
+              Shape Type
+            </label>
+            <select
+              value={selectedShape}
+              onChange={(e) => {
+                const newShape = e.target.value as keyof typeof SHAPES;
+                if (DEBUG_MODE) {
+                  console.log('🔀 SHAPE SELECTION CHANGED:', {
+                    from: selectedShape,
+                    to: newShape,
+                    currentPointSize: pointSize,
+                    currentPointCount: pointCount,
+                    currentPointColor: pointColorTheme,
+                    willTheseSettingsPersist: 'YES - settings should remain the same',
+                    currentSettings: getCurrentSettings()
+                  });
+                }
+                setSelectedShape(newShape);
+              }}
+              style={{
+                width: '100%',
+                padding: '8px',
+                background: inputBackground,
+                color: textColor,
+                border: `1px solid ${inputBorder}`,
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            >
+              {Object.entries(SHAPES).map(([key, config]) => (
+                <option key={key} value={key}>{config.name}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Equation Display */}
+          <div style={{
+            marginBottom: '20px',
+            padding: '12px',
+            background: 'rgba(100, 100, 255, 0.1)',
+            borderRadius: '8px',
+            border: '1px solid rgba(100, 100, 255, 0.3)'
+          }}>
+            <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
+              Mathematical Form:
+            </div>
+            <div style={{ 
+              color: '#fff', 
+              fontSize: '18px', 
+              fontFamily: 'monospace',
+              textAlign: 'center'
+            }}>
+              {SHAPES[selectedShape].equation}
+            </div>
+          </div>
+          
+          {/* Shape Info */}
+          <div style={{ marginBottom: '20px', color: '#aaa', fontSize: '12px' }}>
+            <div>Rendered Points: {currentShape.positions.length}</div>
+            {currentShape.positions.length !== pointCount && (
+              <div style={{ color: '#ffaa00', fontSize: '11px' }}>
+                (Requested: {pointCount}, shape uses {currentShape.positions.length})
+              </div>
+            )}
+            <div>Edges: {currentShape.edges?.length || 0}</div>
+            <div>Complexity: {(currentShape.metadata.complexity * 100).toFixed(0)}%</div>
+          </div>
+          
+          {/* Point Count */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Point Count: {pointCount}
+            </label>
+            <input
+              type="range"
+              min="100"
+              max="3000"
+              step="100"
+              value={pointCount}
+              onChange={(e) => {
+                const newCount = Number(e.target.value);
+                if (DEBUG_MODE) {
+                  console.log('📈 Point count changed:', { from: pointCount, to: newCount });
+                }
+                setPointCount(newCount);
+              }}
+              style={{ width: '100%' }}
+            />
+          </div>
+          
+          {/* Regenerate Button */}
           <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={handleRegenerate}
             style={{
-              padding: '6px 12px',
-              background: theme === 'dark' ? '#444' : '#ddd',
-              color: textColor,
+              width: '100%',
+              padding: '10px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
               border: 'none',
               borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '16px',
+              cursor: 'pointer'
             }}
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            Regenerate Shape
           </button>
-        </div>
-        
-        {/* Shape Selection */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ color: textColor, display: 'block', marginBottom: '8px' }}>
-            Shape Type
-          </label>
-          <select
-            value={selectedShape}
-            onChange={(e) => {
-              const newShape = e.target.value as keyof typeof SHAPES;
-              if (DEBUG_MODE) {
-                console.log('🔀 SHAPE SELECTION CHANGED:', {
-                  from: selectedShape,
-                  to: newShape,
-                  currentPointSize: pointSize,
-                  currentPointCount: pointCount,
-                  currentPointColor: pointColorTheme,
-                  willTheseSettingsPersist: 'YES - settings should remain the same',
-                  currentSettings: getCurrentSettings()
-                });
-              }
-              setSelectedShape(newShape);
-            }}
-            style={{
-              width: '100%',
-              padding: '8px',
-              background: inputBackground,
-              color: textColor,
-              border: `1px solid ${inputBorder}`,
-              borderRadius: '4px',
-              fontSize: '14px'
-            }}
-          >
-            {Object.entries(SHAPES).map(([key, config]) => (
-              <option key={key} value={key}>{config.name}</option>
-            ))}
-          </select>
-        </div>
-        
-        {/* Equation Display */}
-        <div style={{
-          marginBottom: '20px',
-          padding: '12px',
-          background: 'rgba(100, 100, 255, 0.1)',
-          borderRadius: '8px',
-          border: '1px solid rgba(100, 100, 255, 0.3)'
-        }}>
-          <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
-            Mathematical Form:
-          </div>
-          <div style={{ 
-            color: '#fff', 
-            fontSize: '18px', 
-            fontFamily: 'monospace',
-            textAlign: 'center'
-          }}>
-            {SHAPES[selectedShape].equation}
-          </div>
-        </div>
-        
-        {/* Shape Info */}
-        <div style={{ marginBottom: '20px', color: '#aaa', fontSize: '12px' }}>
-          <div>Rendered Points: {currentShape.positions.length}</div>
-          {currentShape.positions.length !== pointCount && (
-            <div style={{ color: '#ffaa00', fontSize: '11px' }}>
-              (Requested: {pointCount}, shape uses {currentShape.positions.length})
-            </div>
-          )}
-          <div>Edges: {currentShape.edges?.length || 0}</div>
-          <div>Complexity: {(currentShape.metadata.complexity * 100).toFixed(0)}%</div>
-        </div>
-        
-        {/* Controls */}
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Point Count: {pointCount}
-          </label>
-          <input
-            type="range"
-            min="100"
-            max="3000"
-            step="100"
-            value={pointCount}
-            onChange={(e) => {
-              const newCount = Number(e.target.value);
-              if (DEBUG_MODE) {
-                console.log('📈 Point count changed:', { from: pointCount, to: newCount });
-              }
-              setPointCount(newCount);
-            }}
-            style={{ width: '100%' }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Point Size: {pointSize.toFixed(2)}
-          </label>
-          <input
-            type="range"
-            min="0.1"
-            max="2"
-            step="0.01"
-            value={pointSize}
-            onChange={(e) => {
-              const newSize = Number(e.target.value);
-              if (DEBUG_MODE) {
-                console.log('📏 Point size changed:', { from: pointSize, to: newSize });
-              }
-              setPointSize(newSize);
-            }}
-            style={{ width: '100%' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#888', marginTop: '2px' }}>
-            <span>0.1</span>
-            <span>0.5</span>
-            <span>1.0</span>
-            <span>1.5</span>
-            <span>2.0</span>
-          </div>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Size Variation: {(pointSizeVariation * 100).toFixed(0)}%
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="10"
-            step="0.1"
-            value={pointSizeVariation}
-            onChange={(e) => setPointSizeVariation(Number(e.target.value))}
-            style={{ width: '100%' }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Point Color
-          </label>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ color: textColor, fontSize: '12px' }}>Dark</label>
-              <input
-                type="color"
-                value={pointColorTheme.dark}
-                onChange={(e) => setPointColorTheme({ ...pointColorTheme, dark: e.target.value })}
-                style={{ width: '100%', height: '30px' }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ color: textColor, fontSize: '12px' }}>
-                Light {pointColorTheme.light ? '' : '(auto)'}
-              </label>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <input
-                  type="color"
-                  value={pointColorTheme.light || darkToLight(pointColorTheme.dark)}
-                  onChange={(e) => setPointColorTheme({ ...pointColorTheme, light: e.target.value })}
-                  style={{ flex: 1, height: '30px' }}
-                />
-                {pointColorTheme.light && (
-                  <button
-                    onClick={() => setPointColorTheme({ ...pointColorTheme, light: undefined })}
-                    style={{
-                      padding: '0 8px',
-                      background: '#ff4a4a',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                    title="Use automatic light color"
-                  >
-                    Auto
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
-            Current: {pointColor}
-          </div>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Point Opacity: {(pointOpacity * 100).toFixed(0)}%
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={pointOpacity}
-            onChange={(e) => setPointOpacity(Number(e.target.value))}
-            style={{ width: '100%' }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Edge Color
-          </label>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ color: textColor, fontSize: '12px' }}>Dark</label>
-              <input
-                type="color"
-                value={edgeColorTheme.dark}
-                onChange={(e) => setEdgeColorTheme({ ...edgeColorTheme, dark: e.target.value })}
-                style={{ width: '100%', height: '30px' }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ color: textColor, fontSize: '12px' }}>
-                Light {edgeColorTheme.light ? '' : '(auto)'}
-              </label>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <input
-                  type="color"
-                  value={edgeColorTheme.light || darkToLight(edgeColorTheme.dark)}
-                  onChange={(e) => setEdgeColorTheme({ ...edgeColorTheme, light: e.target.value })}
-                  style={{ flex: 1, height: '30px' }}
-                />
-                {edgeColorTheme.light && (
-                  <button
-                    onClick={() => setEdgeColorTheme({ ...edgeColorTheme, light: undefined })}
-                    style={{
-                      padding: '0 8px',
-                      background: '#ff4a4a',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                    title="Use automatic light color"
-                  >
-                    Auto
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
-            Current: {edgeColor}
-          </div>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Edge Opacity: {(edgeOpacity * 100).toFixed(0)}%
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={edgeOpacity}
-            onChange={(e) => setEdgeOpacity(Number(e.target.value))}
-            style={{ width: '100%' }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Edge Style
-          </label>
-          <select
-            value={edgeStyle}
-            onChange={(e) => {
-              const newStyle = e.target.value as 'solid' | 'dashed' | 'dotted';
-              if (DEBUG_MODE) {
-                console.log('📐 Edge style changed:', { from: edgeStyle, to: newStyle });
-              }
-              setEdgeStyle(newStyle);
-            }}
-            style={{
-              width: '100%',
-              padding: '6px',
-              background: '#333',
-              color: '#fff',
-              border: '1px solid #555',
-              borderRadius: '4px',
-              fontSize: '14px'
-            }}
-          >
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-          </select>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-            <input
-              type="checkbox"
-              checked={showEdges}
-              onChange={(e) => setShowEdges(e.target.checked)}
-              style={{ marginRight: '8px' }}
-            />
-            Show Edges
-          </label>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-            <input
-              type="checkbox"
-              checked={showGrid}
-              onChange={(e) => setShowGrid(e.target.checked)}
-              style={{ marginRight: '8px' }}
-            />
-            Show Grid
-          </label>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-            <input
-              type="checkbox"
-              checked={showStats}
-              onChange={(e) => setShowStats(e.target.checked)}
-              style={{ marginRight: '8px' }}
-            />
-            Show Stats
-          </label>
-        </div>
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-            <input
-              type="checkbox"
-              checked={autoRotate}
-              onChange={(e) => setAutoRotate(e.target.checked)}
-              style={{ marginRight: '8px' }}
-            />
-            Auto Rotate
-          </label>
-        </div>
-        
-        {autoRotate && (
+        </CollapsibleSection>
+
+        {/* Appearance Section */}
+        <CollapsibleSection
+          title="Appearance"
+          isExpanded={expandedSections.appearance}
+          onToggle={() => setExpandedSections(prev => ({ ...prev, appearance: !prev.appearance }))}
+          theme={theme}
+        >
+          {/* Theme Toggle */}
           <div style={{ marginBottom: '15px' }}>
-            <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-              Rotation Speed: {rotationSpeed.toFixed(2)}
+            <label style={{ color: textColor, display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+              Theme
+            </label>
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: theme === 'dark' ? '#444' : '#ddd',
+                color: textColor,
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              {theme === 'dark' ? '☀️ Switch to Light' : '🌙 Switch to Dark'}
+            </button>
+          </div>
+
+          {/* Point Settings */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Point Size: {pointSize.toFixed(2)}
             </label>
             <input
               type="range"
               min="0.1"
               max="2"
+              step="0.01"
+              value={pointSize}
+              onChange={(e) => {
+                const newSize = Number(e.target.value);
+                if (DEBUG_MODE) {
+                  console.log('📏 Point size changed:', { from: pointSize, to: newSize });
+                }
+                setPointSize(newSize);
+              }}
+              style={{ width: '100%' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#888', marginTop: '2px' }}>
+              <span>0.1</span>
+              <span>0.5</span>
+              <span>1.0</span>
+              <span>1.5</span>
+              <span>2.0</span>
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Size Variation: {(pointSizeVariation * 100).toFixed(0)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="10"
               step="0.1"
-              value={rotationSpeed}
-              onChange={(e) => setRotationSpeed(Number(e.target.value))}
+              value={pointSizeVariation}
+              onChange={(e) => setPointSizeVariation(Number(e.target.value))}
               style={{ width: '100%' }}
             />
           </div>
-        )}
-        
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-            <input
-              type="checkbox"
-              checked={brownianMotion}
-              onChange={(e) => setBrownianMotion(e.target.checked)}
-              style={{ marginRight: '8px' }}
-            />
-            Brownian Motion
-          </label>
-        </div>
-        
-        {brownianMotion && (
-          <>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-                Motion Amplitude: {brownianAmplitude.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="0.1"
-                value={brownianAmplitude}
-                onChange={(e) => setBrownianAmplitude(Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-                Motion Speed: {brownianSpeed.toFixed(3)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="0.05"
-                step="0.001"
-                value={brownianSpeed}
-                onChange={(e) => setBrownianSpeed(Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-            </div>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-                Motion Damping: {brownianDamping.toFixed(3)}
-              </label>
-              <input
-                type="range"
-                min="0.9"
-                max="1"
-                step="0.001"
-                value={brownianDamping}
-                onChange={(e) => setBrownianDamping(Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-            </div>
-          </>
-        )}
-        
-        <button
-          onClick={handleRegenerate}
-          style={{
-            width: '100%',
-            padding: '10px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '16px',
-            cursor: 'pointer',
-            marginTop: '20px'
-          }}
-        >
-          Regenerate Shape
-        </button>
-        
-        {/* Settings Management Section */}
-        <div style={{
-          marginTop: '30px',
-          paddingTop: '20px',
-          borderTop: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
-        }}>
-          <h3 style={{ color: textColor, fontSize: '18px', marginBottom: '15px' }}>
-            Settings Management
-          </h3>
           
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Point Color
+            </label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ color: textColor, fontSize: '12px' }}>Dark</label>
+                <input
+                  type="color"
+                  value={pointColorTheme.dark}
+                  onChange={(e) => setPointColorTheme({ ...pointColorTheme, dark: e.target.value })}
+                  style={{ width: '100%', height: '30px' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ color: textColor, fontSize: '12px' }}>
+                  Light {pointColorTheme.light ? '' : '(auto)'}
+                </label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <input
+                    type="color"
+                    value={pointColorTheme.light || darkToLight(pointColorTheme.dark)}
+                    onChange={(e) => setPointColorTheme({ ...pointColorTheme, light: e.target.value })}
+                    style={{ flex: 1, height: '30px' }}
+                  />
+                  {pointColorTheme.light && (
+                    <button
+                      onClick={() => setPointColorTheme({ ...pointColorTheme, light: undefined })}
+                      style={{
+                        padding: '0 8px',
+                        background: '#ff4a4a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                      title="Use automatic light color"
+                    >
+                      Auto
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+              Current: {pointColor}
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Point Opacity: {(pointOpacity * 100).toFixed(0)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={pointOpacity}
+              onChange={(e) => setPointOpacity(Number(e.target.value))}
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          {/* Edge Settings */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+              <input
+                type="checkbox"
+                checked={showEdges}
+                onChange={(e) => setShowEdges(e.target.checked)}
+                style={{ marginRight: '8px' }}
+              />
+              Show Edges
+            </label>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Edge Color
+            </label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ color: textColor, fontSize: '12px' }}>Dark</label>
+                <input
+                  type="color"
+                  value={edgeColorTheme.dark}
+                  onChange={(e) => setEdgeColorTheme({ ...edgeColorTheme, dark: e.target.value })}
+                  style={{ width: '100%', height: '30px' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ color: textColor, fontSize: '12px' }}>
+                  Light {edgeColorTheme.light ? '' : '(auto)'}
+                </label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <input
+                    type="color"
+                    value={edgeColorTheme.light || darkToLight(edgeColorTheme.dark)}
+                    onChange={(e) => setEdgeColorTheme({ ...edgeColorTheme, light: e.target.value })}
+                    style={{ flex: 1, height: '30px' }}
+                  />
+                  {edgeColorTheme.light && (
+                    <button
+                      onClick={() => setEdgeColorTheme({ ...edgeColorTheme, light: undefined })}
+                      style={{
+                        padding: '0 8px',
+                        background: '#ff4a4a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                      title="Use automatic light color"
+                    >
+                      Auto
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+              Current: {edgeColor}
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Edge Opacity: {(edgeOpacity * 100).toFixed(0)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={edgeOpacity}
+              onChange={(e) => setEdgeOpacity(Number(e.target.value))}
+              style={{ width: '100%' }}
+            />
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+              Edge Style
+            </label>
+            <select
+              value={edgeStyle}
+              onChange={(e) => {
+                const newStyle = e.target.value as 'solid' | 'dashed' | 'dotted';
+                if (DEBUG_MODE) {
+                  console.log('📐 Edge style changed:', { from: edgeStyle, to: newStyle });
+                }
+                setEdgeStyle(newStyle);
+              }}
+              style={{
+                width: '100%',
+                padding: '6px',
+                background: inputBackground,
+                color: textColor,
+                border: `1px solid ${inputBorder}`,
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            >
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+
+          {/* Grid and Stats */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+              <input
+                type="checkbox"
+                checked={showGrid}
+                onChange={(e) => setShowGrid(e.target.checked)}
+                style={{ marginRight: '8px' }}
+              />
+              Show Grid
+            </label>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+              <input
+                type="checkbox"
+                checked={showStats}
+                onChange={(e) => setShowStats(e.target.checked)}
+                style={{ marginRight: '8px' }}
+              />
+              Show Stats
+            </label>
+          </div>
+        </CollapsibleSection>
+
+        {/* Animation Section */}
+        <CollapsibleSection
+          title="Animation"
+          isExpanded={expandedSections.animation}
+          onToggle={() => setExpandedSections(prev => ({ ...prev, animation: !prev.animation }))}
+          theme={theme}
+        >
+          {/* Auto Rotate */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+              <input
+                type="checkbox"
+                checked={autoRotate}
+                onChange={(e) => setAutoRotate(e.target.checked)}
+                style={{ marginRight: '8px' }}
+              />
+              Auto Rotate
+            </label>
+          </div>
+          
+          {autoRotate && (
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+                Rotation Speed: {rotationSpeed.toFixed(2)}
+              </label>
+              <input
+                type="range"
+                min="0.1"
+                max="2"
+                step="0.1"
+                value={rotationSpeed}
+                onChange={(e) => setRotationSpeed(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
+          
+          {/* Brownian Motion */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+              <input
+                type="checkbox"
+                checked={brownianMotion}
+                onChange={(e) => setBrownianMotion(e.target.checked)}
+                style={{ marginRight: '8px' }}
+              />
+              Brownian Motion
+            </label>
+          </div>
+          
+          {brownianMotion && (
+            <>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+                  Motion Amplitude (max: 0.5)
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="0.5"
+                    step="0.001"
+                    value={brownianAmplitude}
+                    onChange={(e) => {
+                      const val = Math.min(0.5, Math.max(0, Number(e.target.value)));
+                      setBrownianAmplitude(val);
+                    }}
+                    style={{
+                      width: '80px',
+                      padding: '4px',
+                      background: inputBackground,
+                      color: textColor,
+                      border: `1px solid ${inputBorder}`,
+                      borderRadius: '4px'
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px', color: '#888' }}>
+                      Fine-tune: {brownianAmplitude.toFixed(3)}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="0.5"
+                      step="0.001"
+                      value={brownianAmplitude}
+                      onChange={(e) => {
+                        setBrownianAmplitude(Number(e.target.value));
+                      }}
+                      style={{ width: '100%' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#888' }}>
+                      <span>0</span>
+                      <span>0.25</span>
+                      <span>0.5</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+                  Update Speed (Hz)
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="60"
+                    step="0.1"
+                    value={brownianSpeed}
+                    onChange={(e) => {
+                      const val = Math.min(60, Math.max(0.1, Number(e.target.value)));
+                      setBrownianSpeed(val);
+                    }}
+                    style={{
+                      width: '80px',
+                      padding: '4px',
+                      background: inputBackground,
+                      color: textColor,
+                      border: `1px solid ${inputBorder}`,
+                      borderRadius: '4px'
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px', color: '#888' }}>
+                      Updates per second: {brownianSpeed.toFixed(1)}
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="60"
+                      step="0.1"
+                      value={brownianSpeed}
+                      onChange={(e) => {
+                        setBrownianSpeed(Number(e.target.value));
+                      }}
+                      style={{ width: '100%' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#888' }}>
+                      <span>0.1</span>
+                      <span>30</span>
+                      <span>60</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </CollapsibleSection>
+
+        {/* Camera Section */}
+        <CollapsibleSection
+          title="Camera"
+          isExpanded={expandedSections.camera}
+          onToggle={() => setExpandedSections(prev => ({ ...prev, camera: !prev.camera }))}
+          theme={theme}
+        >
+          <div style={{ color: textColor, fontSize: '14px', marginBottom: '10px' }}>
+            Camera controls are managed by the 3D viewport:
+          </div>
+          <ul style={{ color: '#aaa', fontSize: '12px', marginLeft: '20px', marginBottom: '15px' }}>
+            <li>Left mouse: Rotate</li>
+            <li>Right mouse: Pan</li>
+            <li>Mouse wheel: Zoom</li>
+          </ul>
+          <div style={{ fontSize: '12px', color: '#888' }}>
+            Reset camera position by refreshing the page or reloading the shape.
+          </div>
+        </CollapsibleSection>
+
+        {/* Settings Management Section */}
+        <CollapsibleSection
+          title="Settings Management"
+          isExpanded={expandedSections.settings}
+          onToggle={() => setExpandedSections(prev => ({ ...prev, settings: !prev.settings }))}
+          theme={theme}
+        >
           {/* Export/Import/Clear Row */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
             <button
@@ -1531,7 +1693,7 @@ export function ShapeTestLab() {
               </div>
             </div>
           )}
-        </div>
+        </CollapsibleSection>
       </div>
       
       {/* 3D Viewport */}
@@ -1571,7 +1733,6 @@ export function ShapeTestLab() {
               brownianMotion={brownianMotion}
               brownianAmplitude={brownianAmplitude}
               brownianSpeed={brownianSpeed}
-              brownianDamping={brownianDamping}
             />
             
             {/* Grid */}

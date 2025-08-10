@@ -17,7 +17,7 @@ import {
   type BrownianOffsets,
   type Layout,
   type Bounds
-} from '../utils';
+} from '../animation/utils';
 import { LAYOUT_STATES, LAYOUT_GENERATORS, type LayoutState } from '../layouts';
 import { LAYOUT_EQUATIONS } from '../layouts/layoutEquations';
 import { ANIMATION_CONFIG as CFG } from '../config';
@@ -110,10 +110,11 @@ class StreamlinedAnimation {
   private hasRegeneratedThisPause: boolean = false; // Track if we've regenerated during current pause
 
   constructor() {
+    console.log('🚀 ANIMATION ENGINE INITIALIZED');
     // Generate all layouts with random parameters
     this.generateLayouts();
     
-    // Initialize brownian motion offsets - always active
+    // Initialize per-particle brownian motion offsets - always active
     this.brownianOffsets = createBrownianOffsets(N);
     
     // Initialize particle mapping - initially particles are at their index positions
@@ -145,10 +146,13 @@ class StreamlinedAnimation {
   private readonly layoutGenerators = LAYOUT_GENERATORS;
 
   private generateLayouts(): void {
+    console.log('📐 GENERATING ALL LAYOUTS');
     // Generate all layouts using the mapping
     for (const state of LAYOUT_STATES) {
+      console.log(`  - Generating ${state}...`);
       this.layouts[state] = this.layoutGenerators[state]();
       this.stateBounds[state] = this.layouts[state].bounds;
+      console.log(`    ✓ ${state}: ${this.layouts[state].positions.length} positions, ${this.layouts[state].edges.length} edges`);
     }
   }
   
@@ -267,8 +271,20 @@ class StreamlinedAnimation {
 
     this.machine.elapsed = time - this.machine.startTime;
 
-    // ALWAYS update brownian motion - it never stops
-    updateBrownianMotion(this.brownianOffsets, CFG.brownian);
+    // ALWAYS update per-particle brownian motion with size-dependent jitter
+    updateBrownianMotion(this.brownianOffsets, CFG.brownian, this.particleSizes);
+    
+    // Debug: Log Brownian offsets every second to verify they're changing
+    if (Math.floor(time / 1000) !== Math.floor((time - 16.67) / 1000)) {
+      const sample = this.brownianOffsets.x.slice(0, 5);
+      const variance = sample.reduce((acc, val) => acc + Math.abs(val), 0) / sample.length;
+      console.log('🔍 BROWNIAN CHECK:', {
+        time: Math.floor(time / 1000),
+        firstFive_x: sample.map(v => v.toFixed(3)),
+        avgMovement: variance.toFixed(3),
+        isMoving: variance > 0.001 ? '✅ YES' : '❌ NO'
+      });
+    }
 
     // Update rotation
     this.updateRotation();
@@ -281,9 +297,21 @@ class StreamlinedAnimation {
       // Regenerate the next state layout at 75% through pause (1.5s into 2s pause)
       // This gives current shape time to settle before we regenerate the upcoming one
       if (pauseProgress >= 0.75 && !this.hasRegeneratedThisPause) {
-        console.log('🔄 REGENERATING UPCOMING LAYOUT:', this.machine.next);
+        console.log('🔄 REGENERATING UPCOMING LAYOUT:', this.machine.next, {
+          pauseProgress,
+          elapsed: this.machine.elapsed,
+          hasRegenerated: this.hasRegeneratedThisPause
+        });
+        const oldPositions = this.layouts[this.machine.next].positions.slice(0, 3);
         this.layouts[this.machine.next] = this.layoutGenerators[this.machine.next]();
         this.stateBounds[this.machine.next] = this.layouts[this.machine.next].bounds;
+        const newPositions = this.layouts[this.machine.next].positions.slice(0, 3);
+        console.log('✅ REGENERATION COMPLETE:', {
+          state: this.machine.next,
+          oldSample: oldPositions.map(p => p.map(v => v.toFixed(2))),
+          newSample: newPositions.map(p => p.map(v => v.toFixed(2))),
+          changed: JSON.stringify(oldPositions) !== JSON.stringify(newPositions)
+        });
         this.hasRegeneratedThisPause = true;
       }
       
@@ -349,7 +377,7 @@ class StreamlinedAnimation {
     
     // Rotate current axis around perpendicular by perturbAngle
     const rotMatrix = createRotationMatrix(perpAxis, perturbAngle);
-    const newAxis = applyMatrixToVector(currentAxis, rotMatrix, true); // Normalize for axis
+    const newAxis = applyMatrixToVector(rotMatrix, currentAxis); // Apply rotation to axis
     
     // Small speed variation (0.9x to 1.1x)
     const speed = CFG.rotation.speedMin + Math.random() * CFG.rotation.speedVariation;
@@ -434,7 +462,7 @@ class StreamlinedAnimation {
       }
       
       // Apply accumulated rotation matrix
-      particlePositions[particleIdx] = applyMatrixToVector(pos, this.rotation.matrix);
+      particlePositions[particleIdx] = applyMatrixToVector(this.rotation.matrix, pos);
     }
 
     // Draw lines connecting the actual particles (with brownian motion)
@@ -476,11 +504,11 @@ class StreamlinedAnimation {
         const dz = posA[2] - posB[2];
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         
-        // Lines connect particles with their brownian motion (apply per-state width/height scaling)
-        const x1 = centerX + (posA[0] + this.brownianOffsets.x[particleA] * CFG.brownian.amplitude - modelCenterX) * scale * widthScale;
-        const y1 = centerY + (posA[1] + this.brownianOffsets.y[particleA] * CFG.brownian.amplitude - modelCenterY) * scale * heightScale;
-        const x2 = centerX + (posB[0] + this.brownianOffsets.x[particleB] * CFG.brownian.amplitude - modelCenterX) * scale * widthScale;
-        const y2 = centerY + (posB[1] + this.brownianOffsets.y[particleB] * CFG.brownian.amplitude - modelCenterY) * scale * heightScale;
+        // Lines connect particles with their individual random brownian offsets
+        const x1 = centerX + (posA[0] + this.brownianOffsets.x[particleA] - modelCenterX) * scale * widthScale;
+        const y1 = centerY + (posA[1] + this.brownianOffsets.y[particleA] - modelCenterY) * scale * heightScale;
+        const x2 = centerX + (posB[0] + this.brownianOffsets.x[particleB] - modelCenterX) * scale * widthScale;
+        const y2 = centerY + (posB[1] + this.brownianOffsets.y[particleB] - modelCenterY) * scale * heightScale;
         
         // Simple thin transparent lines with distance-based alpha
         ctx.strokeStyle = colors.lineColor;
@@ -501,9 +529,9 @@ class StreamlinedAnimation {
     for (let particleIdx = 0; particleIdx < N; particleIdx++) {
       const pos = particlePositions[particleIdx];
       
-      // Brownian motion is always active (apply per-state width/height scaling)
-      const x = centerX + (pos[0] + this.brownianOffsets.x[particleIdx] * CFG.brownian.amplitude - modelCenterX) * scale * widthScale;
-      const y = centerY + (pos[1] + this.brownianOffsets.y[particleIdx] * CFG.brownian.amplitude - modelCenterY) * scale * heightScale;
+      // Per-particle random brownian motion with individual offsets
+      const x = centerX + (pos[0] + this.brownianOffsets.x[particleIdx] - modelCenterX) * scale * widthScale;
+      const y = centerY + (pos[1] + this.brownianOffsets.y[particleIdx] - modelCenterY) * scale * heightScale;
       
       // Use the random size for this particle
       const radius = this.particleSizes[particleIdx];

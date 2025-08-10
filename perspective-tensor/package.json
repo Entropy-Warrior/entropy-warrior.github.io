@@ -3,7 +3,8 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "pkill -f 'astro dev' || true && astro dev",
+    "dev:fresh": "pkill -f 'astro dev' || true && astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
