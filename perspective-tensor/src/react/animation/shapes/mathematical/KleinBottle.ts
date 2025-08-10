@@ -9,12 +9,15 @@ export const EQUATION = "K = ℝP² # ℝP²";
 export const EQUATION_LATEX = "K = \\mathbb{R}P^2 \\# \\mathbb{R}P^2";
 export const DESCRIPTION = "Klein bottle - a surface with no inside or outside";
 
-export function generateKleinBottle(pointCount: number): Shape3D {
-  // Random parameters for variety
+export function generateKleinBottle(pointCount: number, options?: {
+  twist?: number;
+  noise?: number;
+}): Shape3D {
+  // Use provided parameters or fallback to random/default values
   const scale = 3 + Math.random() * 2;
   const bottleRadius = 2 + Math.random() * 1;
   const neckRadius = 0.5 + Math.random() * 0.3;
-  const twist = Math.random() * 0.5;
+  const twist = options?.twist ?? (Math.random() * 0.5);
   
   const positions: Vec3[] = [];
   const edges: [number, number][] = [];
@@ -58,7 +61,7 @@ export function generateKleinBottle(pointCount: number): Shape3D {
     const scaledZ = scale * z;
     
     // Add slight noise for organic feel
-    const noise = 0.05;
+    const noise = options?.noise ?? 0.05;
     const nx = (Math.random() - 0.5) * noise;
     const ny = (Math.random() - 0.5) * noise;
     const nz = (Math.random() - 0.5) * noise;

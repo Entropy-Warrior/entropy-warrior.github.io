@@ -179,30 +179,36 @@ export class ThreeJSRenderer implements IRenderer {
         // Get world position for grid lines, scaled with zoom
         vec2 worldPos = vPosition.xy / uScale; // Use scale to match shape units
         
-        // Create multi-scale grid (adjusted for shape units)
-        float line1 = 1.0 - min(grid(worldPos * 0.1, 10.0), 1.0); // Fine grid every 10 units
-        float line2 = 1.0 - min(grid(worldPos * 0.01, 10.0), 1.0); // Major grid every 100 units
+        // Create multi-scale grid system with finer inner grids
+        float line1 = 1.0 - min(grid(worldPos * 1.0, 10.0), 1.0);   // Very fine grid every 1 unit
+        float line2 = 1.0 - min(grid(worldPos * 0.2, 10.0), 1.0);   // Fine grid every 5 units  
+        float line3 = 1.0 - min(grid(worldPos * 0.1, 10.0), 1.0);   // Medium grid every 10 units
+        float line4 = 1.0 - min(grid(worldPos * 0.01, 10.0), 1.0);  // Major grid every 100 units
         
         // Axis lines
         float axisX = 1.0 - smoothstep(0.0, 2.0 / uResolution.x, abs(vPosition.y));
         float axisY = 1.0 - smoothstep(0.0, 2.0 / uResolution.y, abs(vPosition.x));
         
-        // Combine grids with different intensities (increased for better visibility)
-        float gridIntensity = line1 * 0.4 + line2 * 0.6;
+        // Combine grids with different intensities for hierarchy
+        // Finest grid is very subtle, gets more prominent as grid gets coarser
+        float gridIntensity = line1 * 0.15 + line2 * 0.25 + line3 * 0.4 + line4 * 0.7;
         float axisIntensity = max(axisX, axisY) * 1.0;
         
         float finalIntensity = max(gridIntensity, axisIntensity);
         
-        // Color based on theme (brighter colors for better visibility)
-        vec3 gridColor = uIsDark ? vec3(0.5, 0.5, 0.5) : vec3(0.4, 0.4, 0.4);
-        vec3 axisColor = uIsDark ? vec3(0.8, 0.8, 0.8) : vec3(0.3, 0.3, 0.3);
+        // Color based on theme with slightly different colors for grid hierarchy
+        vec3 fineGridColor = uIsDark ? vec3(0.3, 0.3, 0.3) : vec3(0.6, 0.6, 0.6);   // Subtle for fine grid
+        vec3 coarseGridColor = uIsDark ? vec3(0.5, 0.5, 0.5) : vec3(0.4, 0.4, 0.4); // More visible for coarse grid
+        vec3 axisColor = uIsDark ? vec3(0.8, 0.8, 0.8) : vec3(0.2, 0.2, 0.2);       // Prominent for axes
         
+        // Mix colors based on which grid lines are most prominent
+        vec3 gridColor = mix(fineGridColor, coarseGridColor, (line3 * 0.4 + line4 * 0.7) / (gridIntensity + 0.001));
         vec3 color = mix(gridColor, axisColor, axisIntensity / (gridIntensity + axisIntensity + 0.001));
         
         // Fade out at edges for smooth appearance
         vec2 screenPos = gl_FragCoord.xy / uResolution;
-        vec2 fadeFactors = smoothstep(vec2(0.0), vec2(0.1), screenPos) * 
-                          smoothstep(vec2(0.0), vec2(0.1), vec2(1.0) - screenPos);
+        vec2 fadeFactors = smoothstep(vec2(0.0), vec2(0.08), screenPos) * 
+                          smoothstep(vec2(0.0), vec2(0.08), vec2(1.0) - screenPos);
         float edgeFade = fadeFactors.x * fadeFactors.y;
         
         finalIntensity *= edgeFade;
@@ -269,7 +275,12 @@ export class ThreeJSRenderer implements IRenderer {
     // Grid is NOT affected by shape rotation - it stays stationary in space
   }
 
-  private hexToRgb(hex: string): { r: number; g: number; b: number } {
+  private hexToRgb(hex: string | any): { r: number; g: number; b: number } {
+    // Handle invalid input - fallback to white
+    if (!hex || typeof hex !== 'string') {
+      console.warn('Invalid color passed to hexToRgb:', hex);
+      return { r: 1, g: 1, b: 1 }; // White fallback
+    }
     // Handle rgb() format
     if (hex.startsWith('rgb')) {
       const matches = hex.match(/\d+/g);

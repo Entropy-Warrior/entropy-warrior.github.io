@@ -9,9 +9,11 @@ export const EQUATION = "M = {u,v} → ℝ³/~";
 export const EQUATION_LATEX = "M = \\{u,v\\} \\to \\mathbb{R}^3/\\sim";
 export const DESCRIPTION = "Möbius strip - a surface with only one side";
 
-export function generateMobiusRibbon(pointCount: number): Shape3D {
-  // Random parameters for variety
-  const twists = Math.random() < 0.7 ? 1 : 3; // 70% single twist, 30% triple
+export function generateMobiusRibbon(pointCount: number, options?: {
+  twists?: number;
+}): Shape3D {
+  // Use provided parameters or fallback to random/default values
+  const twists = options?.twists ?? (Math.random() < 0.7 ? 1 : 3); // 70% single twist, 30% triple
   const width = 1.5 + Math.random() * 1.0; // Ribbon width
   const radius = 4 + Math.random() * 2; // Major radius
   const verticalWave = Math.random() * 0.3; // Vertical undulation

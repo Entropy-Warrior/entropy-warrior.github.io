@@ -9,16 +9,21 @@ export const EQUATION = "ψ = ℤ³ + ε";
 export const EQUATION_LATEX = "\\psi = \\mathbb{Z}^3 + \\varepsilon";
 export const DESCRIPTION = "9³ cubic lattice in 3D space";
 
-export function generateTensor(pointCount: number): Shape3D {
+export function generateTensor(pointCount: number, options?: {
+  spacing?: number;
+  skew?: number;
+  twist?: number;
+  noise?: number;
+}): Shape3D {
   // For tensor, we want a perfect cube, so find nearest cube
   const sideLength = Math.round(Math.cbrt(pointCount));
   const actualCount = sideLength ** 3;
   
-  // Random parameters for variety
-  const spacing = 2.0 + Math.random() * 1.0; // Grid spacing (2.0-3.0)
-  const skew = -0.1 + Math.random() * 0.2; // Grid skew (-0.1 to 0.1)
-  const twist = Math.random() * 0.01; // Subtle rotation twist (0-0.01 rad)
-  const noise = 0.15; // Noise amplitude
+  // Use provided parameters or fallback to random/default values
+  const spacing = options?.spacing ?? (2.0 + Math.random() * 1.0); // Grid spacing (2.0-3.0)
+  const skew = options?.skew ?? (-0.1 + Math.random() * 0.2); // Grid skew (-0.1 to 0.1)
+  const twist = options?.twist ?? (Math.random() * 0.01); // Subtle rotation twist (0-0.01 rad)
+  const noise = options?.noise ?? 0.15; // Noise amplitude
   
   const positions: Vec3[] = [];
   const edges: [number, number][] = [];

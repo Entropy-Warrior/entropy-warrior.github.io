@@ -9,11 +9,14 @@ export const EQUATION = "W = ℍ × S¹";
 export const EQUATION_LATEX = "W = \\mathbb{H} \\times S^1";
 export const DESCRIPTION = "Hyperboloid × Circle - spacetime bridge";
 
-export function generateWormhole(pointCount: number): Shape3D {
-  // Random parameters for unique variations
+export function generateWormhole(pointCount: number, options?: {
+  twist?: number;
+  noise?: number;
+}): Shape3D {
+  // Use provided parameters or fallback to random/default values
   const throatRadius = 0.8 + Math.random() * 0.6; // Minimum radius at throat
   const flareRate = 1.5 + Math.random() * 1.0; // How quickly it flares out
-  const twist = Math.random() * 0.5; // Twist factor
+  const twist = options?.twist ?? (Math.random() * 0.5); // Twist factor
   const asymmetry = 0.8 + Math.random() * 0.4; // Asymmetry between ends
   const heightScale = 5 + Math.random() * 3; // Overall height
   
@@ -50,7 +53,7 @@ export function generateWormhole(pointCount: number): Shape3D {
     const y = finalR * Math.sin(θ);
     
     // Add some perturbation for organic feel
-    const noise = 0.1;
+    const noise = options?.noise ?? 0.1;
     const nx = (Math.random() - 0.5) * noise;
     const ny = (Math.random() - 0.5) * noise;
     const nz = (Math.random() - 0.5) * noise;

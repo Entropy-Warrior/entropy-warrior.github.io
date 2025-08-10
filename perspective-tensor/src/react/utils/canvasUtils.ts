@@ -43,11 +43,15 @@ export function createBrownianOffsets(nodeCount: number): BrownianOffsets {
 
 export function updateBrownianMotion(
   offsets: BrownianOffsets,
-  config: { amplitude: number; speed: number; damping?: number },
+  config: { amplitude: number; speed: number; frequency?: number; damping?: number },
   particleSizes?: number[]
 ): void {
   // Base update probability from speed config
   const baseUpdateProbability = Math.min(1, config.speed);
+  
+  // Frequency multiplies the base update probability - higher frequency = more frequent updates
+  const frequencyMultiplier = config.frequency || 1.0;
+  const frequencyAdjustedProbability = Math.min(1, baseUpdateProbability * frequencyMultiplier);
   
   for (let i = 0; i < offsets.x.length; i++) {
     // Size-dependent Brownian motion: smaller particles move more and update more frequently
@@ -55,10 +59,10 @@ export function updateBrownianMotion(
     const particleSize = particleSizes ? particleSizes[i] : 1.5; // Default size if not provided
     const sizeFactor = 1 / Math.sqrt(Math.max(particleSize, 0.1)); // Avoid division by zero
     
-    // Smaller particles update more frequently
-    const updateProbability = Math.min(1, baseUpdateProbability * sizeFactor);
+    // Smaller particles update more frequently, now also affected by frequency setting
+    const updateProbability = Math.min(1, frequencyAdjustedProbability * sizeFactor);
     
-    // Only update this particle if random chance allows (size-dependent probability)
+    // Only update this particle if random chance allows (frequency and size-dependent probability)
     if (Math.random() < updateProbability) {
       // Size-dependent amplitude: smaller particles move more
       const sizeAdjustedAmplitude = config.amplitude * sizeFactor * 0.5; // Scale down a bit

@@ -10,97 +10,101 @@ export const EQUATION_LATEX = "G = \\sum_i C_i(r,\\varphi)";
 export const DESCRIPTION = "Network graph with clustered nodes";
 
 export function generateGraph(pointCount: number): Shape3D {
-  // Random parameters for variety
-  const clusterCount = 5 + Math.floor(Math.random() * 3); // 5-7 clusters
-  const interClusterConnections = 0.1 + Math.random() * 0.2; // Connection probability
-  const clusterDensity = 0.3 + Math.random() * 0.3; // Intra-cluster connection density
-  const spatialSpread = 8 + Math.random() * 4; // Overall spatial spread
-  
   const positions: Vec3[] = [];
   const edges: [number, number][] = [];
   
-  // Points per cluster
+  // Use fixed cluster count like legacy (7 clusters)
+  const clusterCount = 7;
   const basePointsPerCluster = Math.floor(pointCount / clusterCount);
-  const clusterInfo: { center: Vec3; indices: number[]; hub: number }[] = [];
+  const hubs: number[] = [];
   
-  // Generate clusters
+  // Generate all positions with cluster assignment (like legacy)
   for (let c = 0; c < clusterCount; c++) {
     const clusterSize = c === clusterCount - 1 
       ? pointCount - positions.length 
       : basePointsPerCluster;
+    const clusterStart = positions.length;
     
-    // Random cluster center in 3D space
-    const θ = (c / clusterCount) * 2 * Math.PI + Math.random() * 0.5;
-    const φ = Math.acos(2 * Math.random() - 1); // Random latitude
-    const r = spatialSpread * (0.7 + Math.random() * 0.3);
-    
+    // Random cluster center in 3D space (like legacy)
+    const θc = Math.random() * 2 * Math.PI;
+    const φc = Math.acos(2 * Math.random() - 1); // Random latitude
+    const rc = 6 + Math.random() * 4; // Random radius between 6-10
     const center: Vec3 = [
-      r * Math.sin(φ) * Math.cos(θ),
-      r * Math.sin(φ) * Math.sin(θ),
-      r * Math.cos(φ)
+      rc * Math.sin(φc) * Math.cos(θc),
+      rc * Math.sin(φc) * Math.sin(θc),
+      rc * Math.cos(φc)
     ];
     
-    const clusterIndices: number[] = [];
-    let hubIndex = positions.length; // First node is hub
-    
-    // Generate cluster nodes
+    // Generate cluster points in spherical distribution (like legacy)
+    const clusterPoints: Vec3[] = [];
     for (let i = 0; i < clusterSize; i++) {
-      // Use Gaussian distribution around cluster center
-      const nodeR = Math.abs(randomGaussian() * 2);
-      const nodeθ = Math.random() * 2 * Math.PI;
-      const nodeφ = Math.acos(2 * Math.random() - 1);
+      // Random spherical coordinates for true 3D distribution
+      const theta = Math.random() * 2 * Math.PI; // Random azimuth
+      const phi = Math.acos(2 * Math.random() - 1); // Random inclination for uniform sphere
+      const radius = 3 * Math.random(); // Random radius from 0 to 3
       
-      const x = center[0] + nodeR * Math.sin(nodeφ) * Math.cos(nodeθ);
-      const y = center[1] + nodeR * Math.sin(nodeφ) * Math.sin(nodeθ);
-      const z = center[2] + nodeR * Math.cos(nodeφ);
-      
-      positions.push([x, y, z]);
-      clusterIndices.push(positions.length - 1);
+      const ε = () => (Math.random() - 0.5) * 0.3; // Small noise
+      const p: Vec3 = [
+        center[0] + radius * Math.sin(phi) * Math.cos(theta) + ε(),
+        center[1] + radius * Math.sin(phi) * Math.sin(theta) + ε(),
+        center[2] + radius * Math.cos(phi) + ε()
+      ];
+      positions.push(p);
+      clusterPoints.push(p);
     }
     
-    clusterInfo.push({ center, indices: clusterIndices, hub: hubIndex });
+    // Calculate true 3D centroid (like legacy)
+    const sum = clusterPoints.reduce(
+      (acc, p) => [acc[0] + p[0], acc[1] + p[1], acc[2] + p[2]],
+      [0, 0, 0]
+    );
+    const centroid: Vec3 = [sum[0] / clusterSize, sum[1] / clusterSize, sum[2] / clusterSize];
+    
+    // Find the point closest to the centroid (like legacy)
+    let minDist = Infinity;
+    let hubIdx = clusterStart;
+    for (let i = 0; i < clusterPoints.length; i++) {
+      const p = clusterPoints[i];
+      const dist = Math.sqrt(
+        (p[0] - centroid[0]) ** 2 + 
+        (p[1] - centroid[1]) ** 2 + 
+        (p[2] - centroid[2]) ** 2
+      );
+      if (dist < minDist) {
+        minDist = dist;
+        hubIdx = clusterStart + i;
+      }
+    }
+    hubs.push(hubIdx);
   }
   
-  // Create intra-cluster edges (within clusters)
-  clusterInfo.forEach(cluster => {
-    const { indices, hub } = cluster;
+  // Hub-spoke edges with cycle (like legacy)
+  for (let c = 0; c < clusterCount; c++) {
+    const hub = hubs[c];
+    const clusterStart = c * basePointsPerCluster;
+    const clusterSize = c === clusterCount - 1 ? pointCount - clusterStart : basePointsPerCluster;
     
-    // Connect hub to some nodes (star topology)
-    indices.forEach((idx, i) => {
-      if (i > 0 && Math.random() < 0.7) {
-        edges.push([hub, idx]);
-      }
-    });
-    
-    // Random connections within cluster
-    for (let i = 0; i < indices.length; i++) {
-      for (let j = i + 1; j < indices.length; j++) {
-        if (Math.random() < clusterDensity) {
-          edges.push([indices[i], indices[j]]);
-        }
+    // Connect hub to all points in its cluster (like legacy)
+    for (let i = 0; i < clusterSize; i++) {
+      const nodeIdx = clusterStart + i;
+      if (nodeIdx !== hub) {
+        edges.push([hub, nodeIdx]);
       }
     }
-  });
-  
-  // Create inter-cluster edges (between clusters)
-  for (let i = 0; i < clusterInfo.length; i++) {
-    for (let j = i + 1; j < clusterInfo.length; j++) {
-      // Connect hubs with higher probability
-      if (Math.random() < interClusterConnections * 2) {
-        edges.push([clusterInfo[i].hub, clusterInfo[j].hub]);
-      }
-      
-      // Random connections between clusters
-      const connections = Math.floor(Math.random() * 3);
-      for (let k = 0; k < connections; k++) {
-        const idx1 = clusterInfo[i].indices[
-          Math.floor(Math.random() * clusterInfo[i].indices.length)
-        ];
-        const idx2 = clusterInfo[j].indices[
-          Math.floor(Math.random() * clusterInfo[j].indices.length)
-        ];
-        edges.push([idx1, idx2]);
-      }
+    
+    // Connect to next hub in cycle, but check distance first (like legacy)
+    const nextHub = hubs[(c + 1) % clusterCount];
+    const hubPos = positions[hub];
+    const nextHubPos = positions[nextHub];
+    const dist = Math.sqrt(
+      (hubPos[0] - nextHubPos[0]) ** 2 +
+      (hubPos[1] - nextHubPos[1]) ** 2 +
+      (hubPos[2] - nextHubPos[2]) ** 2
+    );
+    
+    // Only connect if hubs are within reasonable distance (like legacy)
+    if (dist < 15) {
+      edges.push([hub, nextHub]);
     }
   }
   

@@ -112,8 +112,9 @@ interface SliderWithInputProps {
   label: string;
   baseValue: number;
   onBaseValueChange: (value: number) => void;
-  adjustmentPercent: number;
-  onAdjustmentChange: (percent: number) => void;
+  onAdjustedValueChange?: (adjustedValue: number) => void;
+  adjustmentPercent?: number;
+  onAdjustmentChange?: (percent: number) => void;
   minBaseValue?: number;
   maxBaseValue?: number;
   baseStep?: number;
@@ -127,8 +128,9 @@ function SliderWithInput({
   label,
   baseValue,
   onBaseValueChange,
-  adjustmentPercent,
-  onAdjustmentChange,
+  onAdjustedValueChange,
+  adjustmentPercent: externalAdjustmentPercent,
+  onAdjustmentChange: externalOnAdjustmentChange,
   minBaseValue = 0,
   maxBaseValue = 1000,
   baseStep = 0.1,
@@ -137,7 +139,36 @@ function SliderWithInput({
   adjustmentStep = 1,
   displayFormat = (v) => v.toFixed(baseStep < 1 ? Math.ceil(-Math.log10(baseStep)) : 0),
 }: SliderWithInputProps) {
+  // Use internal state if external props not provided
+  const [internalAdjustmentPercent, setInternalAdjustmentPercent] = useState(0);
+  
+  const adjustmentPercent = externalAdjustmentPercent ?? internalAdjustmentPercent;
+  const onAdjustmentChange = externalOnAdjustmentChange ?? setInternalAdjustmentPercent;
+  
   const adjustedValue = baseValue * (1 + adjustmentPercent / 100);
+
+  // Debounced callback for adjusted value changes
+  const debounceRef = useRef<number>(0);
+  
+  useEffect(() => {
+    if (onAdjustedValueChange) {
+      // Clear previous timeout
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+      
+      // Set new timeout with debounce
+      debounceRef.current = window.setTimeout(() => {
+        onAdjustedValueChange(adjustedValue);
+      }, 150); // 150ms debounce
+    }
+    
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [adjustedValue, onAdjustedValueChange]);
   
   const handleBaseValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = Number(e.target.value);
@@ -194,6 +225,14 @@ function SliderWithInput({
   );
 }
 
+// Theme-specific visual settings
+interface ThemeVisualSettings {
+  pointColor: string;
+  pointOpacity: number;
+  edgeColor: string;
+  edgeOpacity: number;
+}
+
 interface ShapeSettings {
   selectedShape: keyof typeof SHAPES;
   pointCount: number;
@@ -202,28 +241,81 @@ interface ShapeSettings {
   showStats: boolean;
   pointSize: number;
   pointSizeVariation: number;
-  pointColor: ThemeColor;
-  pointOpacity: number;
-  edgeColor: ThemeColor;
-  edgeOpacity: number;
+  // Remove individual color/opacity - now handled by themeSettings
   edgeStyle: "solid" | "dashed" | "dotted";
   autoRotate: boolean;
   rotationSpeed: number;
   rotationSensitivity: number;
   theme: "dark" | "light";
+  themeSettings: {
+    dark: ThemeVisualSettings;
+    light: ThemeVisualSettings;
+  };
   brownianMotion: boolean;
   brownianAmplitude: number;
   brownianSpeed: number;
+  brownianFrequency: number;
+}
+
+interface ShapeSpecificParams {
+  tensor: {
+    pointCount: number;
+    spacing: number;
+    skew: number;
+    twist: number;
+    noise: number;
+  };
+  galaxy: {
+    pointCount: number;
+  };
+  graph: {
+    pointCount: number;
+  };
+  mobius: {
+    pointCount: number;
+    twists: number;
+  };
+  wormhole: {
+    pointCount: number;
+    twist: number;
+    noise: number;
+  };
+  helix: {
+    pointCount: number;
+  };
+  torus: {
+    pointCount: number;
+  };
+  klein: {
+    pointCount: number;
+    twist: number;
+    noise: number;
+  };
+  sphere: {
+    pointCount: number;
+  };
+  hypercube: {
+    pointCount: number;
+  };
 }
 
 interface AllShapeSettings {
   currentShape: keyof typeof SHAPES;
   globalSettings: Omit<ShapeSettings, 'selectedShape' | 'pointCount'>;
-  shapeSpecific: {
-    [key in keyof typeof SHAPES]?: {
-      pointCount: number;
-    };
-  };
+  shapeSpecific: Partial<ShapeSpecificParams>;
+  appliedShapeValues: Record<string, number>;
+}
+
+// Utility function to safely get string color from potentially old ThemeColor objects
+function getColorString(color: string | any, theme: 'dark' | 'light'): string {
+  if (typeof color === 'string') {
+    return color;
+  }
+  // Handle old ThemeColor objects
+  if (color && typeof color === 'object') {
+    return color[theme] || color.dark || '#ffffff';
+  }
+  return '#ffffff'; // Fallback
 }
 
 export function ShapeTestLabWebGL() {
@@ -245,20 +337,43 @@ export function ShapeTestLabWebGL() {
         showStats: true,
         pointSize: 1.0,
         pointSizeVariation: 0.5,
-        pointColor: DEFAULT_THEME_COLORS.pointColor,
-        pointOpacity: 0.9,
-        edgeColor: DEFAULT_THEME_COLORS.edgeColor,
-        edgeOpacity: 0.5,
         edgeStyle: "solid" as const,
         autoRotate: true,
         rotationSpeed: 0.5,
         rotationSensitivity: 0.015,
         theme: "dark" as const,
+        themeSettings: {
+          dark: {
+            pointColor: DEFAULT_THEME_COLORS.pointColor.dark,
+            pointOpacity: 0.9,
+            edgeColor: DEFAULT_THEME_COLORS.edgeColor.dark,
+            edgeOpacity: 0.5,
+          },
+          light: {
+            pointColor: DEFAULT_THEME_COLORS.pointColor.light || darkToLight(DEFAULT_THEME_COLORS.pointColor.dark),
+            pointOpacity: 0.9,
+            edgeColor: DEFAULT_THEME_COLORS.edgeColor.light || darkToLight(DEFAULT_THEME_COLORS.edgeColor.dark),
+            edgeOpacity: 0.5,
+          },
+        },
         brownianMotion: false,
         brownianAmplitude: 0.1,
         brownianSpeed: 1.0,
+        brownianFrequency: 1.0,
       },
-      shapeSpecific: {},
+      shapeSpecific: {
+        tensor: { pointCount: 729, spacing: 2.5, skew: 0.0, twist: 0.005, noise: 0.15 },
+        galaxy: { pointCount: 2000 },
+        graph: { pointCount: 500 },
+        mobius: { pointCount: 1000, twists: 1 },
+        wormhole: { pointCount: 1000, twist: 0.25, noise: 0.1 },
+        helix: { pointCount: 800 },
+        torus: { pointCount: 1200 },
+        klein: { pointCount: 1500, twist: 0.25, noise: 0.05 },
+        sphere: { pointCount: 1000 },
+        hypercube: { pointCount: 1296 },
+      },
+      appliedShapeValues: {},
     };
   });
 
@@ -281,6 +396,57 @@ export function ShapeTestLabWebGL() {
     }));
   };
 
+  // Shape-specific parameter setters
+  const setShapeParam = (param: string, value: number) => {
+    setShapeSpecificSettings((prev) => ({
+      ...prev,
+      [selectedShape]: {
+        ...prev[selectedShape],
+        [param]: value,
+      },
+    }));
+  };
+
+  // Get shape-specific parameter values
+  const getShapeParam = (param: string, defaultValue: number): number => {
+    const shapeSettings = shapeSpecificSettings[selectedShape] as any;
+    return shapeSettings?.[param] ?? defaultValue;
+  };
+
+  // Get shape options for the current shape using applied values
+  const getShapeOptions = () => {
+    const getAppliedValue = (key: string, defaultValue: number) => {
+      return appliedShapeValues[key] ?? getShapeParam(key, defaultValue);
+    };
+
+    switch (selectedShape) {
+      case "tensor":
+        return {
+          spacing: getAppliedValue(`${selectedShape}_spacing`, 2.5),
+          skew: getAppliedValue(`${selectedShape}_skew`, 0.0),
+          twist: getAppliedValue(`${selectedShape}_twist`, 0.005),
+          noise: getAppliedValue(`${selectedShape}_noise`, 0.15),
+        };
+      case "mobius":
+        return {
+          twists: Math.round(getAppliedValue(`${selectedShape}_twists`, 1)),
+        };
+      case "wormhole":
+        return {
+          twist: getAppliedValue(`${selectedShape}_twist`, 0.25),
+          noise: getAppliedValue(`${selectedShape}_noise`, 0.1),
+        };
+      case "klein":
+        return {
+          twist: getAppliedValue(`${selectedShape}_twist`, 0.25),
+          noise: getAppliedValue(`${selectedShape}_noise`, 0.05),
+        };
+      default:
+        return {};
+    }
+  };
+
+
   // Global settings
   const [showEdges, setShowEdges] = useState(
     allSettings.globalSettings.showEdges,
@@ -295,18 +461,64 @@ export function ShapeTestLabWebGL() {
   const [pointSizeVariation, setPointSizeVariation] = useState(
     allSettings.globalSettings.pointSizeVariation,
   );
-  const [pointColorTheme, setPointColorTheme] = useState<ThemeColor>(
-    allSettings.globalSettings.pointColor,
+  const [theme, setTheme] = useState<"dark" | "light">(
+    allSettings.globalSettings.theme,
   );
-  const [pointOpacity, setPointOpacity] = useState(
-    allSettings.globalSettings.pointOpacity,
-  );
-  const [edgeColorTheme, setEdgeColorTheme] = useState<ThemeColor>(
-    allSettings.globalSettings.edgeColor,
-  );
-  const [edgeOpacity, setEdgeOpacity] = useState(
-    allSettings.globalSettings.edgeOpacity,
-  );
+  
+  // Theme-specific visual settings with fallback
+  const [themeSettings, setThemeSettings] = useState<{
+    dark: ThemeVisualSettings;
+    light: ThemeVisualSettings;
+  }>(allSettings.globalSettings.themeSettings || {
+    dark: {
+      pointColor: DEFAULT_THEME_COLORS.pointColor.dark,
+      pointOpacity: 0.9,
+      edgeColor: DEFAULT_THEME_COLORS.edgeColor.dark,
+      edgeOpacity: 0.5,
+    },
+    light: {
+      pointColor: DEFAULT_THEME_COLORS.pointColor.light || darkToLight(DEFAULT_THEME_COLORS.pointColor.dark),
+      pointOpacity: 0.9,
+      edgeColor: DEFAULT_THEME_COLORS.edgeColor.light || darkToLight(DEFAULT_THEME_COLORS.edgeColor.dark),
+      edgeOpacity: 0.5,
+    },
+  });
+  
+  // Current theme values (derived from themeSettings and current theme)
+  const currentThemeVisuals = themeSettings[theme];
+  const pointColorTheme = currentThemeVisuals.pointColor;
+  const pointOpacity = currentThemeVisuals.pointOpacity;
+  const edgeColorTheme = currentThemeVisuals.edgeColor;
+  const edgeOpacity = currentThemeVisuals.edgeOpacity;
+  
+  // Functions to update theme-specific settings
+  const setPointColorTheme = (color: string) => {
+    setThemeSettings(prev => ({
+      ...prev,
+      [theme]: { ...prev[theme], pointColor: color }
+    }));
+  };
+  
+  const setPointOpacity = (opacity: number) => {
+    setThemeSettings(prev => ({
+      ...prev,
+      [theme]: { ...prev[theme], pointOpacity: opacity }
+    }));
+  };
+  
+  const setEdgeColorTheme = (color: string) => {
+    setThemeSettings(prev => ({
+      ...prev,
+      [theme]: { ...prev[theme], edgeColor: color }
+    }));
+  };
+  
+  const setEdgeOpacity = (opacity: number) => {
+    setThemeSettings(prev => ({
+      ...prev,
+      [theme]: { ...prev[theme], edgeOpacity: opacity }
+    }));
+  };
   const [edgeStyle, setEdgeStyle] = useState<"solid" | "dashed" | "dotted">(
     allSettings.globalSettings.edgeStyle,
   );
@@ -319,9 +531,6 @@ export function ShapeTestLabWebGL() {
   const [rotationSensitivity, setRotationSensitivity] = useState(
     allSettings.globalSettings.rotationSensitivity || 0.015,
   );
-  const [theme, setTheme] = useState<"dark" | "light">(
-    allSettings.globalSettings.theme,
-  );
   
   // Adjustment percentages for the new slider system
   const [pointCountAdjustment, setPointCountAdjustment] = useState(0);
@@ -333,7 +542,17 @@ export function ShapeTestLabWebGL() {
   const [rotationSensitivityAdjustment, setRotationSensitivityAdjustment] = useState(0);
   const [brownianAmplitudeAdjustment, setBrownianAmplitudeAdjustment] = useState(0);
   const [brownianSpeedAdjustment, setBrownianSpeedAdjustment] = useState(0);
+  const [brownianFrequencyAdjustment, setBrownianFrequencyAdjustment] = useState(0);
   const [scaleAdjustment, setScaleAdjustment] = useState(0);
+  
+  // Applied values state - tracks the final adjusted values from SliderWithInput components
+  const [appliedShapeValues, setAppliedShapeValues] = useState<Record<string, number>>({});
+  
+  // Helper to update applied values for a specific parameter
+  const setAppliedValue = (paramKey: string, value: number) => {
+    setAppliedShapeValues(prev => ({ ...prev, [paramKey]: value }));
+  };
+  
   const [brownianMotion, setBrownianMotion] = useState(
     allSettings.globalSettings.brownianMotion,
   );
@@ -342,6 +561,9 @@ export function ShapeTestLabWebGL() {
   );
   const [brownianSpeed, setBrownianSpeed] = useState(
     allSettings.globalSettings.brownianSpeed,
+  );
+  const [brownianFrequency, setBrownianFrequency] = useState(
+    allSettings.globalSettings.brownianFrequency || 1.0,
   );
   const [regenerateKey, setRegenerateKey] = useState(0);
   const [savedPresets, setSavedPresets] = useState<Record<string, ShapeSettings>>({});
@@ -361,20 +583,30 @@ export function ShapeTestLabWebGL() {
   const pointCount = Math.round(basePointCount * (1 + pointCountAdjustment / 100));
   
   // Computed adjusted values (these are what get used in the application)
-  const adjustedPointSize = pointSize * (1 + pointSizeAdjustment / 100);
-  const adjustedPointSizeVariation = pointSizeVariation * (1 + pointSizeVariationAdjustment / 100);
-  const adjustedPointOpacity = Math.min(1, Math.max(0, pointOpacity * (1 + pointOpacityAdjustment / 100)));
-  const adjustedEdgeOpacity = Math.min(1, Math.max(0, edgeOpacity * (1 + edgeOpacityAdjustment / 100)));
-  const adjustedRotationSpeed = rotationSpeed * (1 + rotationSpeedAdjustment / 100);
   const adjustedRotationSensitivity = rotationSensitivity * (1 + rotationSensitivityAdjustment / 100);
-  const adjustedBrownianAmplitude = brownianAmplitude * (1 + brownianAmplitudeAdjustment / 100);
-  const adjustedBrownianSpeed = brownianSpeed * (1 + brownianSpeedAdjustment / 100);
   const adjustedScale = scale * (1 + scaleAdjustment / 100);
   
-  // Keep refs in sync
-  scaleRef.current = scale;
-  scaleAdjustmentRef.current = scaleAdjustment;
-
+  // Shape regeneration dependency hash - only triggers when shape structure needs to be rebuilt
+  const renderingHash = useMemo(() => {
+    const currentShapeSettings = shapeSpecificSettings[selectedShape];
+    return JSON.stringify({
+      // Shape structure only
+      selectedShape,
+      pointCount,
+      shapeParams: currentShapeSettings,
+      appliedShapeValues,
+      regenerateKey,
+      theme, // Include theme for color updates
+    });
+  }, [
+    selectedShape,
+    pointCount,
+    shapeSpecificSettings,
+    appliedShapeValues,
+    regenerateKey,
+    theme,
+  ]);
+  
   // Canvas and renderer refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<IRenderer | null>(null);
@@ -382,6 +614,58 @@ export function ShapeTestLabWebGL() {
   const mouseRef = useRef({ x: 0, y: 0, down: false });
   const viewportRotationRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
   const shapeRotationRef = useRef({ x: 0, y: 0 });
+
+  // Visual property refs so animation loop sees current values
+  const pointSizeRef = useRef(pointSize);
+  const pointSizeAdjustmentRef = useRef(pointSizeAdjustment);
+  const pointSizeVariationRef = useRef(pointSizeVariation);
+  const pointSizeVariationAdjustmentRef = useRef(pointSizeVariationAdjustment);
+  const pointOpacityRef = useRef(pointOpacity);
+  const pointOpacityAdjustmentRef = useRef(pointOpacityAdjustment);
+  const edgeOpacityRef = useRef(edgeOpacity);
+  const edgeOpacityAdjustmentRef = useRef(edgeOpacityAdjustment);
+  const showEdgesRef = useRef(showEdges);
+  const showGridRef = useRef(showGrid);
+  const nodeColorRef = useRef('');
+  const lineColorRef = useRef('');
+  const themeRef = useRef(theme);
+  const autoRotateRef = useRef(autoRotate);
+  const rotationSpeedRef = useRef(rotationSpeed);
+  const rotationSpeedAdjustmentRef = useRef(rotationSpeedAdjustment);
+  const brownianMotionRef = useRef(brownianMotion);
+  const brownianAmplitudeRef = useRef(brownianAmplitude);
+  const brownianAmplitudeAdjustmentRef = useRef(brownianAmplitudeAdjustment);
+  const brownianSpeedRef = useRef(brownianSpeed);
+  const brownianSpeedAdjustmentRef = useRef(brownianSpeedAdjustment);
+  const brownianFrequencyRef = useRef(brownianFrequency);
+  const brownianFrequencyAdjustmentRef = useRef(brownianFrequencyAdjustment);
+  const themeSettingsRef = useRef(themeSettings);
+
+  // Keep refs in sync with state
+  scaleRef.current = scale;
+  scaleAdjustmentRef.current = scaleAdjustment;
+  pointSizeRef.current = pointSize;
+  pointSizeAdjustmentRef.current = pointSizeAdjustment;
+  pointSizeVariationRef.current = pointSizeVariation;
+  pointSizeVariationAdjustmentRef.current = pointSizeVariationAdjustment;
+  pointOpacityRef.current = pointOpacity;
+  pointOpacityAdjustmentRef.current = pointOpacityAdjustment;
+  edgeOpacityRef.current = edgeOpacity;
+  edgeOpacityAdjustmentRef.current = edgeOpacityAdjustment;
+  showEdgesRef.current = showEdges;
+  showGridRef.current = showGrid;
+  themeRef.current = theme;
+  autoRotateRef.current = autoRotate;
+  rotationSpeedRef.current = rotationSpeed;
+  rotationSpeedAdjustmentRef.current = rotationSpeedAdjustment;
+  brownianMotionRef.current = brownianMotion;
+  brownianAmplitudeRef.current = brownianAmplitude;
+  brownianAmplitudeAdjustmentRef.current = brownianAmplitudeAdjustment;
+  brownianSpeedRef.current = brownianSpeed;
+  brownianSpeedAdjustmentRef.current = brownianSpeedAdjustment;
+  brownianFrequencyRef.current = brownianFrequency;
+  brownianFrequencyAdjustmentRef.current = brownianFrequencyAdjustment;
+  themeSettingsRef.current = themeSettings;
 
   // Get actual colors based on current theme - memoized to prevent unnecessary re-renders
   // Previously these were computed on every render and included in useEffect deps,
@@ -395,11 +679,16 @@ export function ShapeTestLabWebGL() {
     [edgeColorTheme, theme]
   );
 
+  // Update color refs
+  nodeColorRef.current = nodeColor;
+  lineColorRef.current = lineColor;
+
   // Theme colors now handled by Tailwind classes
 
   // Collapsible sections state
   const [expandedSections, setExpandedSections] = useState({
     shape: true,
+    shapeParams: false,
     appearance: true,
     animation: false,
     camera: false,
@@ -514,16 +803,20 @@ export function ShapeTestLabWebGL() {
     renderer.initialize(canvas, width, height);
     rendererRef.current = renderer;
 
-    // Generate shape
-    const shapeData = SHAPES[selectedShape].generator(pointCount);
+    // Generate shape with shape-specific parameters
+    const shapeOptions = getShapeOptions();
+    const generator = SHAPES[selectedShape].generator as any;
+    const shapeData = Object.keys(shapeOptions).length > 0 
+      ? generator(pointCount, shapeOptions)
+      : generator(pointCount);
     const positions = shapeData.positions;
     const edges = shapeData.edges || [];
 
     // Setup animation state
     const brownianOffsets = createBrownianOffsets(positions.length);
-    const particleSizes = new Array(positions.length)
+    const particleSizeVariations = new Array(positions.length)
       .fill(0)
-      .map(() => adjustedPointSize * (0.5 + Math.random() * adjustedPointSizeVariation));
+      .map(() => 0.5 + Math.random() * 1.0); // Random variation factor (0.5 to 1.5)
 
     // Convert edges to line format
     const lines = edges.map(([a, b]: [number, number]) => ({
@@ -544,8 +837,9 @@ export function ShapeTestLabWebGL() {
       }
       
       // Update shape rotation (auto-rotation affects only the shape)
-      if (autoRotate && !isManuallyRotatingRef.current) {
+      if (autoRotateRef.current && !isManuallyRotatingRef.current) {
         // Only auto-rotate the shape when not manually dragging
+        const adjustedRotationSpeed = rotationSpeedRef.current * (1 + rotationSpeedAdjustmentRef.current / 100);
         shapeRotationRef.current.y += adjustedRotationSpeed * 0.01;
       }
       
@@ -556,10 +850,14 @@ export function ShapeTestLabWebGL() {
       viewportRotationRef.current.vy *= 0.95; // Damping
 
       // Update Brownian motion
-      if (brownianMotion) {
+      if (brownianMotionRef.current) {
+        const adjustedBrownianAmplitude = brownianAmplitudeRef.current * (1 + brownianAmplitudeAdjustmentRef.current / 100);
+        const adjustedBrownianSpeed = brownianSpeedRef.current * (1 + brownianSpeedAdjustmentRef.current / 100);
+        const adjustedBrownianFrequency = brownianFrequencyRef.current * (1 + brownianFrequencyAdjustmentRef.current / 100);
         updateBrownianMotion(brownianOffsets, {
           amplitude: adjustedBrownianAmplitude,
           speed: adjustedBrownianSpeed * 0.02,
+          frequency: adjustedBrownianFrequency,
         });
       }
 
@@ -570,38 +868,80 @@ export function ShapeTestLabWebGL() {
       }
 
       // Render
+      const currentTheme = themeRef.current;
+      const currentVisuals = themeSettingsRef.current[currentTheme];
+      const adjustedPointOpacity = currentVisuals.pointOpacity * (1 + pointOpacityAdjustmentRef.current / 100);
+      const adjustedEdgeOpacity = currentVisuals.edgeOpacity * (1 + edgeOpacityAdjustmentRef.current / 100);
+      
+      // Calculate particle sizes dynamically based on current settings
+      const currentAdjustedPointSize = pointSizeRef.current * (1 + pointSizeAdjustmentRef.current / 100);
+      const currentAdjustedPointSizeVariation = pointSizeVariationRef.current * (1 + pointSizeVariationAdjustmentRef.current / 100);
+      const particleSizes = particleSizeVariations.map(variation => 
+        currentAdjustedPointSize * (variation * currentAdjustedPointSizeVariation)
+      );
+      
       const config: RenderConfig = {
-        width: canvas.width,
-        height: canvas.height,
+        width: canvas.clientWidth,
+        height: canvas.clientHeight,
         scale: scaleRef.current * (1 + scaleAdjustmentRef.current / 100),
-        centerX: canvas.width / 2,
-        centerY: canvas.height / 2,
+        centerX: canvas.clientWidth / 2,
+        centerY: canvas.clientHeight / 2,
         modelCenterX: 0,
         modelCenterY: 0,
-        nodeColor,
-        lineColor,
-        isDark: theme === "dark",
+        nodeColor: getColorString(currentVisuals.pointColor, currentTheme),
+        lineColor: getColorString(currentVisuals.edgeColor, currentTheme),
+        isDark: currentTheme === "dark",
         particleSizes,
         brownianOffsets,
         pointOpacity: adjustedPointOpacity,
         edgeOpacity: adjustedEdgeOpacity,
-        showGrid,
+        showGrid: showGridRef.current,
       };
 
-      renderer.render(positions, showEdges ? lines : [], config);
+      renderer.render(positions, showEdgesRef.current ? lines : [], config);
 
       animationRef.current = requestAnimationFrame(animate);
     };
 
     animate();
 
-    // Handle resize
+    // Handle resize with throttling to prevent excessive calls
+    let resizeTimeout: number;
     const handleResize = () => {
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-      canvas.width = width;
-      canvas.height = height;
-      renderer.resize(width, height);
+      clearTimeout(resizeTimeout);
+      resizeTimeout = window.setTimeout(() => {
+        // Force layout recalculation
+        canvas.offsetHeight; // Trigger a reflow
+        
+        const rect = canvas.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+        const dpr = Math.min(window.devicePixelRatio, 2); // Limit for performance
+        
+        // Also check parent dimensions for comparison
+        const parentRect = canvas.parentElement?.getBoundingClientRect();
+        
+        // Use the parent dimensions instead of the old canvas dimensions
+        const actualWidth = parentRect ? parentRect.width : width;
+        const actualHeight = parentRect ? parentRect.height : height;
+        
+        // Only resize if dimensions actually changed
+        const currentWidth = canvas.width / dpr;
+        const currentHeight = canvas.height / dpr;
+        if (Math.abs(currentWidth - actualWidth) < 1 && Math.abs(currentHeight - actualHeight) < 1) {
+          return; // Skip if dimensions haven't meaningfully changed
+        }
+        
+        // Set the internal canvas resolution
+        canvas.width = actualWidth * dpr;
+        canvas.height = actualHeight * dpr;
+        
+        // Scale the canvas back down using CSS to fill parent
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        
+        renderer.resize(actualWidth, actualHeight);
+      }, 16); // ~60fps throttling
     };
 
     // Initial sizing
@@ -611,13 +951,18 @@ export function ShapeTestLabWebGL() {
     const resizeObserver = new ResizeObserver(() => {
       handleResize();
     });
-    resizeObserver.observe(canvas);
+    
+    // Observe the parent container instead of the canvas itself
+    const parentContainer = canvas.parentElement;
+    if (parentContainer) {
+      resizeObserver.observe(parentContainer);
+    } else {
+      resizeObserver.observe(canvas);
+    }
 
     // Also listen to window resize with throttling
-    let resizeTimeout: number;
     const throttledWindowResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = window.setTimeout(handleResize, 16); // ~60fps
+      handleResize();
     };
     window.addEventListener("resize", throttledWindowResize);
 
@@ -628,25 +973,7 @@ export function ShapeTestLabWebGL() {
       clearTimeout(resizeTimeout);
       renderer.dispose();
     };
-  }, [
-    selectedShape,
-    pointCount,
-    showEdges,
-    showGrid,
-    pointSize,
-    pointSizeVariation,
-    pointColorTheme,
-    pointOpacity,
-    edgeColorTheme,
-    edgeOpacity,
-    autoRotate,
-    rotationSpeed,
-    theme,
-    brownianMotion,
-    brownianAmplitude,
-    brownianSpeed,
-    regenerateKey
-  ]);
+  }, [renderingHash]);
 
   // Load saved presets from localStorage
   useEffect(() => {
@@ -660,12 +987,14 @@ export function ShapeTestLabWebGL() {
     }
   }, []);
 
-  // Apply theme to document body
+  // Apply theme to document body and HTML element
   useEffect(() => {
     if (theme === "dark") {
+      document.documentElement.classList.add("dark");
       document.body.style.backgroundColor = "#0a0a0a";
       document.body.style.color = "#ffffff";
     } else {
+      document.documentElement.classList.remove("dark");
       document.body.style.backgroundColor = "#ffffff";
       document.body.style.color = "#000000";
     }
@@ -681,20 +1010,19 @@ export function ShapeTestLabWebGL() {
         showStats,
         pointSize,
         pointSizeVariation,
-        pointColor: pointColorTheme,
-        pointOpacity,
-        edgeColor: edgeColorTheme,
-        edgeOpacity,
         edgeStyle,
         autoRotate,
         rotationSpeed,
         rotationSensitivity,
         theme,
+        themeSettings,
         brownianMotion,
         brownianAmplitude,
         brownianSpeed,
+        brownianFrequency,
       },
       shapeSpecific: shapeSpecificSettings,
+      appliedShapeValues: appliedShapeValues,
     };
 
     localStorage.setItem(
@@ -704,23 +1032,22 @@ export function ShapeTestLabWebGL() {
   }, [
     selectedShape,
     shapeSpecificSettings,
+    appliedShapeValues,
     showEdges,
     showGrid,
     showStats,
     pointSize,
     pointSizeVariation,
-    pointColorTheme,
-    pointOpacity,
-    edgeColorTheme,
-    edgeOpacity,
     edgeStyle,
     autoRotate,
     rotationSpeed,
     rotationSensitivity,
     theme,
+    themeSettings,
     brownianMotion,
     brownianAmplitude,
     brownianSpeed,
+    brownianFrequency,
   ]);
 
   // Settings management functions
@@ -733,20 +1060,19 @@ export function ShapeTestLabWebGL() {
         showStats,
         pointSize,
         pointSizeVariation,
-        pointColor: pointColorTheme,
-        pointOpacity,
-        edgeColor: edgeColorTheme,
-        edgeOpacity,
         edgeStyle,
         autoRotate,
         rotationSpeed,
         rotationSensitivity,
         theme,
+        themeSettings,
         brownianMotion,
         brownianAmplitude,
         brownianSpeed,
+        brownianFrequency,
       },
       shapeSpecific: shapeSpecificSettings,
+      appliedShapeValues: appliedShapeValues,
     };
     const json = JSON.stringify(completeSettings, null, 2);
     const blob = new Blob([json], { type: "application/json" });
@@ -776,10 +1102,7 @@ export function ShapeTestLabWebGL() {
           setShowStats(imported.globalSettings.showStats);
           setPointSize(imported.globalSettings.pointSize);
           setPointSizeVariation(imported.globalSettings.pointSizeVariation);
-          setPointColorTheme(imported.globalSettings.pointColor);
-          setPointOpacity(imported.globalSettings.pointOpacity);
-          setEdgeColorTheme(imported.globalSettings.edgeColor);
-          setEdgeOpacity(imported.globalSettings.edgeOpacity);
+          setThemeSettings(imported.globalSettings.themeSettings);
           setEdgeStyle(imported.globalSettings.edgeStyle);
           setAutoRotate(imported.globalSettings.autoRotate);
           setRotationSpeed(imported.globalSettings.rotationSpeed);
@@ -788,11 +1111,17 @@ export function ShapeTestLabWebGL() {
           setBrownianMotion(imported.globalSettings.brownianMotion);
           setBrownianAmplitude(imported.globalSettings.brownianAmplitude);
           setBrownianSpeed(imported.globalSettings.brownianSpeed || 1.0);
+          setBrownianFrequency(imported.globalSettings.brownianFrequency || 1.0);
         }
 
         // Apply shape-specific settings
         if (imported.shapeSpecific) {
           setShapeSpecificSettings(imported.shapeSpecific);
+        }
+
+        // Apply applied shape values
+        if (imported.appliedShapeValues) {
+          setAppliedShapeValues(imported.appliedShapeValues);
         }
 
         // Set current shape
@@ -816,10 +1145,7 @@ export function ShapeTestLabWebGL() {
       showStats,
       pointSize,
       pointSizeVariation,
-      pointColor: pointColorTheme,
-      pointOpacity,
-      edgeColor: edgeColorTheme,
-      edgeOpacity,
+      themeSettings,
       edgeStyle,
       autoRotate,
       rotationSpeed,
@@ -828,6 +1154,7 @@ export function ShapeTestLabWebGL() {
       brownianMotion,
       brownianAmplitude,
       brownianSpeed,
+      brownianFrequency,
     };
     const newPresets = { ...savedPresets, [name]: settings };
     setSavedPresets(newPresets);
@@ -857,17 +1184,8 @@ export function ShapeTestLabWebGL() {
     if (settings.pointSizeVariation !== undefined) {
       setPointSizeVariation(settings.pointSizeVariation);
     }
-    if (settings.pointColor !== undefined) {
-      setPointColorTheme(settings.pointColor);
-    }
-    if (settings.pointOpacity !== undefined) {
-      setPointOpacity(settings.pointOpacity);
-    }
-    if (settings.edgeColor !== undefined) {
-      setEdgeColorTheme(settings.edgeColor);
-    }
-    if (settings.edgeOpacity !== undefined) {
-      setEdgeOpacity(settings.edgeOpacity);
+    if (settings.themeSettings !== undefined) {
+      setThemeSettings(settings.themeSettings);
     }
     if (settings.edgeStyle !== undefined) {
       setEdgeStyle(settings.edgeStyle);
@@ -892,6 +1210,9 @@ export function ShapeTestLabWebGL() {
     }
     if (settings.brownianSpeed !== undefined) {
       setBrownianSpeed(settings.brownianSpeed);
+    }
+    if (settings.brownianFrequency !== undefined) {
+      setBrownianFrequency(settings.brownianFrequency);
     }
   };
 
@@ -989,6 +1310,137 @@ export function ShapeTestLabWebGL() {
           </button>
         </CollapsibleSection>
 
+        {/* Shape Parameters Section */}
+        <CollapsibleSection
+          title="Shape Parameters"
+          isExpanded={expandedSections.shapeParams}
+          onToggle={() =>
+            setExpandedSections((prev) => ({
+              ...prev,
+              shapeParams: !prev.shapeParams,
+            }))
+          }
+        >
+          {selectedShape === "tensor" && (
+            <>
+              <SliderWithInput
+                label="Spacing"
+                baseValue={getShapeParam("spacing", 2.5)}
+                onBaseValueChange={(v) => setShapeParam("spacing", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("tensor_spacing", v)}
+                minBaseValue={1.0}
+                maxBaseValue={5.0}
+                baseStep={0.1}
+                displayFormat={(v) => v.toFixed(1)}
+              />
+              
+              <SliderWithInput
+                label="Skew"
+                baseValue={getShapeParam("skew", 0.0)}
+                onBaseValueChange={(v) => setShapeParam("skew", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("tensor_skew", v)}
+                minBaseValue={-0.3}
+                maxBaseValue={0.3}
+                baseStep={0.01}
+                displayFormat={(v) => v.toFixed(2)}
+              />
+              
+              <SliderWithInput
+                label="Twist"
+                baseValue={getShapeParam("twist", 0.005)}
+                onBaseValueChange={(v) => setShapeParam("twist", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("tensor_twist", v)}
+                minBaseValue={0.0}
+                maxBaseValue={0.05}
+                baseStep={0.001}
+                displayFormat={(v) => v.toFixed(3)}
+              />
+              
+              <SliderWithInput
+                label="Noise"
+                baseValue={getShapeParam("noise", 0.15)}
+                onBaseValueChange={(v) => setShapeParam("noise", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("tensor_noise", v)}
+                minBaseValue={0.0}
+                maxBaseValue={0.5}
+                baseStep={0.01}
+                displayFormat={(v) => v.toFixed(2)}
+              />
+            </>
+          )}
+          
+          {selectedShape === "mobius" && (
+            <SliderWithInput
+              label="Twists"
+              baseValue={getShapeParam("twists", 1)}
+              onBaseValueChange={(v) => setShapeParam("twists", v)}
+              onAdjustedValueChange={(v) => setAppliedValue("mobius_twists", v)}
+              minBaseValue={1}
+              maxBaseValue={5}
+              baseStep={1}
+              displayFormat={(v) => Math.round(v).toString()}
+            />
+          )}
+          
+          {selectedShape === "wormhole" && (
+            <>
+              <SliderWithInput
+                label="Twist"
+                baseValue={getShapeParam("twist", 0.25)}
+                onBaseValueChange={(v) => setShapeParam("twist", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("wormhole_twist", v)}
+                minBaseValue={0.0}
+                maxBaseValue={1.0}
+                baseStep={0.01}
+                displayFormat={(v) => v.toFixed(2)}
+              />
+              
+              <SliderWithInput
+                label="Noise"
+                baseValue={getShapeParam("noise", 0.1)}
+                onBaseValueChange={(v) => setShapeParam("noise", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("wormhole_noise", v)}
+                minBaseValue={0.0}
+                maxBaseValue={0.3}
+                baseStep={0.01}
+                displayFormat={(v) => v.toFixed(2)}
+              />
+            </>
+          )}
+
+          {selectedShape === "klein" && (
+            <>
+              <SliderWithInput
+                label="Twist"
+                baseValue={getShapeParam("twist", 0.25)}
+                onBaseValueChange={(v) => setShapeParam("twist", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("klein_twist", v)}
+                minBaseValue={0.0}
+                maxBaseValue={1.0}
+                baseStep={0.01}
+                displayFormat={(v) => v.toFixed(2)}
+              />
+              
+              <SliderWithInput
+                label="Noise"
+                baseValue={getShapeParam("noise", 0.05)}
+                onBaseValueChange={(v) => setShapeParam("noise", v)}
+                onAdjustedValueChange={(v) => setAppliedValue("klein_noise", v)}
+                minBaseValue={0.0}
+                maxBaseValue={0.3}
+                baseStep={0.01}
+                displayFormat={(v) => v.toFixed(2)}
+              />
+            </>
+          )}
+          
+          {!["tensor", "mobius", "wormhole", "klein"].includes(selectedShape) && (
+            <p className="text-gray-600 dark:text-gray-400 text-sm italic">
+              No specific parameters for {SHAPES[selectedShape].name}
+            </p>
+          )}
+        </CollapsibleSection>
+
         {/* Appearance Section */}
         <CollapsibleSection
           title="Appearance"
@@ -1000,18 +1452,6 @@ export function ShapeTestLabWebGL() {
             }))
           }
         >
-          {/* Theme Toggle */}
-          <div className="mb-4">
-            <label className="text-gray-700 dark:text-gray-300 block mb-2 text-sm">
-              Theme
-            </label>
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 rounded cursor-pointer text-sm transition-colors"
-            >
-              {theme === "dark" ? "☀️ Switch to Light" : "🌙 Switch to Dark"}
-            </button>
-          </div>
 
           {/* Point Size */}
           <SliderWithInput
@@ -1028,43 +1468,15 @@ export function ShapeTestLabWebGL() {
           {/* Point Color */}
           <div className="mb-4">
             <label className="text-gray-700 dark:text-gray-300 block mb-1 text-sm">
-              Point Color
+              Point Color ({theme === "dark" ? "Dark Theme" : "Light Theme"})
             </label>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-gray-600 dark:text-gray-400 text-xs">
-                  Dark
-                </label>
-                <input
-                  type="color"
-                  value={pointColorTheme.dark}
-                  onChange={(e) =>
-                    setPointColorTheme({
-                      ...pointColorTheme,
-                      dark: e.target.value,
-                    })
-                  }
-                  className="w-full h-8"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-gray-600 dark:text-gray-400 text-xs">
-                  Light
-                </label>
-                <input
-                  type="color"
-                  value={
-                    pointColorTheme.light || darkToLight(pointColorTheme.dark)
-                  }
-                  onChange={(e) =>
-                    setPointColorTheme({
-                      ...pointColorTheme,
-                      light: e.target.value,
-                    })
-                  }
-                  className="w-full h-8"
-                />
-              </div>
+            <div>
+              <input
+                type="color"
+                value={currentThemeVisuals.pointColor}
+                onChange={(e) => setPointColorTheme(e.target.value)}
+                className="w-full h-8"
+              />
             </div>
           </div>
 
@@ -1123,43 +1535,15 @@ export function ShapeTestLabWebGL() {
             <>
               <div className="mb-4">
                 <label className="text-gray-700 dark:text-gray-300 block mb-1 text-sm">
-                  Edge Color
+                  Edge Color ({theme === "dark" ? "Dark Theme" : "Light Theme"})
                 </label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-gray-600 dark:text-gray-400 text-xs">
-                      Dark
-                    </label>
-                    <input
-                      type="color"
-                      value={edgeColorTheme.dark}
-                      onChange={(e) =>
-                        setEdgeColorTheme({
-                          ...edgeColorTheme,
-                          dark: e.target.value,
-                        })
-                      }
-                      className="w-full h-8"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-gray-600 dark:text-gray-400 text-xs">
-                      Light
-                    </label>
-                    <input
-                      type="color"
-                      value={
-                        edgeColorTheme.light || darkToLight(edgeColorTheme.dark)
-                      }
-                      onChange={(e) =>
-                        setEdgeColorTheme({
-                          ...edgeColorTheme,
-                          light: e.target.value,
-                        })
-                      }
-                      className="w-full h-8"
-                    />
-                  </div>
+                <div>
+                  <input
+                    type="color"
+                    value={currentThemeVisuals.edgeColor}
+                    onChange={(e) => setEdgeColorTheme(e.target.value)}
+                    className="w-full h-8"
+                  />
                 </div>
               </div>
               
@@ -1238,8 +1622,8 @@ export function ShapeTestLabWebGL() {
                 adjustmentPercent={brownianAmplitudeAdjustment}
                 onAdjustmentChange={setBrownianAmplitudeAdjustment}
                 minBaseValue={0}
-                maxBaseValue={0.1}
-                baseStep={0.001}
+                maxBaseValue={1.0}
+                baseStep={0.01}
                 displayFormat={(v) => v.toFixed(3)}
               />
               
@@ -1251,6 +1635,18 @@ export function ShapeTestLabWebGL() {
                 onAdjustmentChange={setBrownianSpeedAdjustment}
                 minBaseValue={0.1}
                 maxBaseValue={5.0}
+                baseStep={0.1}
+                displayFormat={(v) => v.toFixed(1)}
+              />
+              
+              <SliderWithInput
+                label="Motion Frequency"
+                baseValue={brownianFrequency}
+                onBaseValueChange={setBrownianFrequency}
+                adjustmentPercent={brownianFrequencyAdjustment}
+                onAdjustmentChange={setBrownianFrequencyAdjustment}
+                minBaseValue={0.1}
+                maxBaseValue={10.0}
                 baseStep={0.1}
                 displayFormat={(v) => v.toFixed(1)}
               />
@@ -1421,6 +1817,15 @@ export function ShapeTestLabWebGL() {
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
         />
+
+        {/* Floating Theme Toggle */}
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="absolute top-4 left-4 z-50 w-12 h-12 rounded-full bg-black/80 dark:bg-white/20 hover:bg-black/90 dark:hover:bg-white/30 text-white dark:text-white backdrop-blur-sm border border-white/20 dark:border-white/10 transition-all duration-200 flex items-center justify-center text-lg shadow-lg hover:scale-105"
+          title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
 
         {/* Performance Info */}
         <div className="fixed top-4 right-4 z-40 p-3 bg-black/80 dark:bg-black/90 text-white font-mono text-xs rounded-lg backdrop-blur-sm border border-white/10 min-w-[120px]">
