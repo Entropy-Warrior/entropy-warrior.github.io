@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AnimationCanvas from '../react/components/AnimationCanvas.tsx';
+
+// Test-only page: not linked from anywhere; direct access via /shapes
+// Show the mathematical eel with proper head structure and variable vertex transitions
+---
+<BaseLayout title="Mathematical Eel Shape">
+  <div class="relative flex items-center justify-center min-h-[calc(100vh-6rem)] w-full">
+    <div class="relative w-full h-full">
+      <AnimationCanvas
+        client:load
+        stateListOverride={['Eel']}
+        autoRotate={false}
+        enableDrag={true}
+        enableZoom={true}
+        showEquation={true}
+        transitions={false}
+      />
+    </div>
+  </div>
+</BaseLayout>
+
+

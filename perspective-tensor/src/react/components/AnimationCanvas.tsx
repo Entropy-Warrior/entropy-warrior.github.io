@@ -106,10 +106,11 @@ class StreamlinedAnimation {
     transitionProgress: 1,
     cycleCount: 0
   };
-  private previousState: State | null = null; // Track previous state to avoid repetition
+  private currentStateIndex: number = 0; // Track position in deterministic sequence
+  private hasRegeneratedThisPause: boolean = false; // Track if we've regenerated during current pause
 
   constructor() {
-    // Generate all 4 states with slight viewing angle randomness
+    // Generate all layouts with random parameters
     this.generateLayouts();
     
     // Initialize brownian motion offsets - always active
@@ -122,10 +123,10 @@ class StreamlinedAnimation {
     // Initialize particle sizes with normal distribution around 1.5
     this.particleSizes = this.generateParticleSizes();
     
-    // Initialize with random states
-    const firstState = this.getNextRandomState();
-    this.previousState = firstState;
-    const secondState = this.getNextRandomState();
+    // Initialize with deterministic sequence
+    const firstState = LAYOUT_STATES[0]; // Start with first state
+    const secondState = LAYOUT_STATES[1]; // Next is second state
+    this.currentStateIndex = 0;
     
     this.machine = {
       state: firstState,
@@ -167,14 +168,10 @@ class StreamlinedAnimation {
     return sizes;
   }
   
-  private getNextRandomState(): State {
-    // Filter out the previous state to avoid immediate repetition
-    const availableStates = this.previousState !== null 
-      ? LAYOUT_STATES.filter(s => s !== this.previousState)
-      : [...LAYOUT_STATES];
-    
-    // Pick a random state from available ones
-    return availableStates[Math.floor(Math.random() * availableStates.length)];
+  private getNextDeterministicState(): State {
+    // Cycle through states in order
+    this.currentStateIndex = (this.currentStateIndex + 1) % LAYOUT_STATES.length;
+    return LAYOUT_STATES[this.currentStateIndex];
   }
   
   updateUnifiedScale(width: number, height: number): void {
@@ -278,8 +275,20 @@ class StreamlinedAnimation {
     
     // Update state machine
     if (this.machine.phase === 'pause') {
+      // Regenerate layouts during the middle of pause when shape is stable
+      const pauseProgress = this.machine.elapsed / CFG.timing.pauseMs;
+      
+      // Regenerate the next state layout at 75% through pause (1.5s into 2s pause)
+      // This gives current shape time to settle before we regenerate the upcoming one
+      if (pauseProgress >= 0.75 && !this.hasRegeneratedThisPause) {
+        console.log('🔄 REGENERATING UPCOMING LAYOUT:', this.machine.next);
+        this.layouts[this.machine.next] = this.layoutGenerators[this.machine.next]();
+        this.stateBounds[this.machine.next] = this.layouts[this.machine.next].bounds;
+        this.hasRegeneratedThisPause = true;
+      }
+      
       if (this.machine.elapsed >= CFG.timing.pauseMs) {
-        // Start morphing - just generate random mapping, don't regenerate layouts yet
+        // Start morphing - just generate random mapping, layouts already regenerated
         this.generateRandomMapping();
         
         this.machine.phase = 'morph';
@@ -297,11 +306,8 @@ class StreamlinedAnimation {
         // Update state
         this.machine.state = this.machine.next;
         
-        // Add current state to history and get next random state
-        // State transition complete
-        // Update previous state
-        this.previousState = this.machine.state;
-        this.machine.next = this.getNextRandomState();
+        // Get next state in deterministic sequence (no regeneration yet)
+        this.machine.next = this.getNextDeterministicState();
         
         // Update rotation cycles
         this.updateRotationCycle();
@@ -310,6 +316,7 @@ class StreamlinedAnimation {
         this.machine.phase = 'pause';
         this.machine.startTime = time;
         this.machine.elapsed = 0;
+        this.hasRegeneratedThisPause = false; // Reset regeneration flag for new pause
       }
     }
 

@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "source": "robust MAT-based extraction using flo-mat",
+    "timestamp": "2025-08-10T01:50:35.257Z",
+    "vertices": 0,
+    "edges": 0,
+    "usedMAT": true
+  },
+  "positions": [],
+  "edges": [],
+  "centerline2D": [],
+  "centerline3D": [],
+  "radiusProfile": []
+}

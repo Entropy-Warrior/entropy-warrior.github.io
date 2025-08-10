@@ -26,7 +26,17 @@ const makeLayout = (positions: Vec3[], edges: [number, number][]): Layout => {
   return { positions: centered, edges, lineBrightness: createSimpleBrightness(edges.length, 0.8), bounds };
 };
 
+// Legacy noise function (kept for compatibility)
 const noise = (ε: number) => () => (Math.random() - 0.5) * ε;
+
+// Universal physics-based Brownian motion: D ∝ 1/√(size)
+// Einstein-Smoluchowski equation implementation
+const universalBrownian = (localSize: number, baseAmplitude: number = 0.1) => {
+  // Inverse square root relationship: smaller size → faster jiggling
+  const sizeFactor = 1 / Math.sqrt(Math.max(localSize, 0.1)); // Avoid division by zero
+  const amplitude = baseAmplitude * sizeFactor;
+  return (Math.random() - 0.5) * amplitude;
+};
 
 // ═══════════════════════════════════════════════════════════════
 // TENSOR: Perfect 9³ cubic lattice in 3D space
@@ -35,9 +45,24 @@ const noise = (ε: number) => () => (Math.random() - 0.5) * ε;
 // ═══════════════════════════════════════════════════════════════
 export const generateMathTensorLayout = (): Layout => {
   const ε = noise(0.15);
-  const positions = Array.from({length: N}, (_, i) => 
-    [81, 9, 1].map(d => 2.5 * ((~~(i/d) % 9) - 4) + ε()) as Vec3
-  );
+  
+  // Random tensor parameters for variety
+  const spacing = 2.0 + Math.random() * 1.0; // Grid spacing (2.0-3.0)
+  const skew = -0.1 + Math.random() * 0.1; // Grid skew (-0.2 to 0.2)
+  const twist = Math.random() * 0.01; // Very subtle rotation twist (0-0.05 rad)
+  
+  console.log('📐 TENSOR REGENERATED:', { spacing: spacing.toFixed(2), skew: skew.toFixed(2), twist: twist.toFixed(2) });
+  
+  const positions = Array.from({length: N}, (_, i) => {
+    const [x, y, z] = [81, 9, 1].map(d => spacing * ((~~(i/d) % 9) - 4));
+    
+    // Apply skew and twist transformations
+    const skewedX = x + skew * y;
+    const twistedX = skewedX * Math.cos(twist * z) - y * Math.sin(twist * z);
+    const twistedY = skewedX * Math.sin(twist * z) + y * Math.cos(twist * z);
+    
+    return [twistedX + ε(), twistedY + ε(), z + ε()] as Vec3;
+  });
   const edges = positions.flatMap((_, i) => 
     [81, 9, 1].filter(d => i % d + d < N && ~~(i/d) % 9 < 8).map(d => [i, i + d] as [number, number])
   );
@@ -147,56 +172,76 @@ export const generateMathGraphLayout = (): Layout => {
 
 
 // ═══════════════════════════════════════════════════════════════
-// MORPH DISK: Flat spiral galaxy with random gap gradient
-// Ψ₁(t) = √t·R·e^(iωt) + ε·z·k̂
+// DISK GALAXY: Flat spiral galaxy layout with random parameters
+// f(t) = √t·R·e^(iωt) + ε·z·k̂
 // ═══════════════════════════════════════════════════════════════
-const morphDisk = (ε: () => number): Vec3[] => {
+export const generateMathDiskGalaxyLayout = (): Layout => {
   const spiralTightness = 8 + Math.random() * 8; // Random between 8-16 rotations
   const gapGradient = 0.3 + Math.random() * 0.5; // Random gap gradient 0.3-0.8
   
-  return Array.from({length: N}, (_, i) => {
-    const t = i / N;
-    const θ = spiralTightness * Math.PI * t; // Random spiral tightness
-    const r = 12 * Math.pow(t, gapGradient); // Random gap gradient via power
+  console.log('🌌 GALAXY REGENERATED:', { spiralTightness: spiralTightness.toFixed(1), gapGradient: gapGradient.toFixed(2) });
+  
+  const positions = Array.from({length: N}, (_, i) => {
+    // Galaxy density: pack more points in center, linear spread outward
+    const linearT = i / N;
     
-    // Extremely flat - true galaxy disk profile
-    const z = 0.3 * (1 - t) * Math.cos(θ); // Minimal height, decreases outward
+    // Galaxy density: exponential profile I(R) = I₀ * e^(-R/R_D)
+    // For point distribution, we need inverse: R = -R_D * ln(1 - u) where u ∈ [0,1)
+    const scaleLength = 3.0; // Galaxy disk scale length R_D
+    const maxRadius = 12; // Maximum galaxy radius
+    
+    // Exponential disk distribution (avoid u=1 to prevent ln(0))
+    const u = Math.min(linearT, 0.999);
+    const r = -scaleLength * Math.log(1 - u); // Exponential radial distribution
+    const clampedR = Math.min(r, maxRadius); // Clamp to max radius
+    const t = clampedR / maxRadius; // Normalize for other calculations
+    
+    // Spiral: continuous in one direction, tighter at center
+    // Total angle accumulates continuously from center to edge
+    const spiralRate = spiralTightness / (1 + t * 2); // Decreases with radius (looser at edges)
+    const θ = spiralTightness * Math.PI * t; // Simple continuous spiral
+    
+         // Flat galaxy disk with more noise in the center
+     const baseHeight = 0.3 * (1 - t) * Math.cos(θ); // Minimal height, decreases outward
+     const centerNoise = (Math.random() - 0.5) * 1.2 * (1 - t * 0.7); // More noise in center, less at edges
+     const z = baseHeight + centerNoise;
+    
+    // Size-dependent Brownian motion: smaller radius = more jiggling
+    const localSize = clampedR; // Use radius as size measure
     
     return [
-      r * Math.cos(θ) + ε(),
-      r * Math.sin(θ) + ε(),
-      z + ε()
+      clampedR * Math.cos(θ) + universalBrownian(localSize),
+      clampedR * Math.sin(θ) + universalBrownian(localSize),
+      z + universalBrownian(localSize)
     ] as Vec3;
   });
-};
 
-const generateDiskEdges = (): [number, number][] => {
+  // Connect consecutive points along the spiral only
   const edges: [number, number][] = [];
-  
-  // Only connect consecutive points along the spiral
-  // This creates a clean spiral without cross-connections
   for (let i = 0; i < N - 1; i++) {
     edges.push([i, i + 1]);
   }
   
-  // Optionally add sparse connections for the outer parts only
-  // Skip every few points to reduce density but maintain structure
-  for (let i = N * 0.7; i < N - 3; i += 3) {
-    edges.push([i, i + 3]);
-  }
-  
-  return edges;
+  return makeLayout(positions, edges);
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MORPH RIBBON: True Möbius strip with smooth continuous twist
-// Ψ₂(u,v) = C(u) + v·R(u/2)·[n₁(u), n₂(u), n₃]
+// MOBIUS RIBBON: True Möbius strip with smooth continuous twist
+// f(u,v) = C(u) + v·R(u/2)·[n₁(u), n₂(u), n₃]
 // ═══════════════════════════════════════════════════════════════
-const morphRibbon = (ε: () => number): Vec3[] => {
-  const strips = 27; // Number of strips across width
-  const loops = Math.floor(N / strips); // Points along the strip
+export const generateMathMobiusRibbonLayout = (): Layout => {
+  const ε = noise(0.1);
   
-  return Array.from({length: N}, (_, i) => {
+  // Smooth Möbius parameters for elegant appearance
+  const strips = 24 + Math.floor(Math.random() * 5); // Strips across width (24-28) - fewer for smoothness
+  const loops = Math.floor(N / strips); // Points along the strip
+  const width = 3.0 + Math.random() * 0.8; // Ribbon width (3.0-3.8) - more consistent
+  const verticalWave = 0.2 + Math.random() * 0.3; // Very subtle wave (0.2-0.5) - much smoother
+  const waveFreq = 1; // Single smooth wave - no random frequency
+  
+  console.log('🎀 MOBIUS REGENERATED:', { strips, width: width.toFixed(2), verticalWave: verticalWave.toFixed(2), waveFreq });
+  
+  const positions = Array.from({length: N}, (_, i) => {
     const strip = i % strips;
     const loop = Math.floor(i / strips);
     
@@ -204,15 +249,14 @@ const morphRibbon = (ε: () => number): Vec3[] => {
     const u = (loop / loops) * 2 * Math.PI;
     const v = (strip / (strips - 1) - 0.5) * 2;
     
-    // Center curve - a circle in 3D space
+    // Center curve - a circle in 3D space with random wave
     const R = 10;
     const centerX = R * Math.cos(u);
     const centerY = R * Math.sin(u);
-    const centerZ = 2 * Math.sin(3 * u); // Gentle 3D variation
+    const centerZ = verticalWave * Math.sin(waveFreq * u); // Variable 3D wave
     
     // Möbius twist: rotate the strip by u/2 as we go around
     const twist = u / 2; // 180° total rotation creates Möbius topology
-    const width = 3.5;
     
     // Normal to the circle at point u
     const normalX = -Math.cos(u);
@@ -232,56 +276,67 @@ const morphRibbon = (ε: () => number): Vec3[] => {
       centerZ + v * width * ribbonZ + ε()
     ] as Vec3;
   });
-};
 
-const generateRibbonEdges = (): [number, number][] => {
   const edges: [number, number][] = [];
-  const W = 27;
-  const loops = Math.floor(N / W);
   
   for (let i = 0; i < N; i++) {
-    const strip = i % W;
-    const loop = Math.floor(i / W);
+    const strip = i % strips;
+    const loop = Math.floor(i / strips);
     
     // Along width (connect strips)
-    if (strip < W - 1) edges.push([i, i + 1]);
+    if (strip < strips - 1) edges.push([i, i + 1]);
     
     // Along length (connect loops)
     if (loop < loops - 1) {
-      edges.push([i, i + W]);
+      edges.push([i, i + strips]);
     } else {
       // Connect last loop to first loop with twist (Möbius closure)
-      const targetStrip = W - 1 - strip; // Flip across width for twist
+      const targetStrip = strips - 1 - strip; // Flip across width for twist
       const targetIdx = targetStrip;
       if (targetIdx < N) edges.push([i, targetIdx]);
     }
   }
   
-  return edges;
+  return makeLayout(positions, edges);
 };
 
 // ═══════════════════════════════════════════════════════════════
-// MORPH HELIX: Classic DNA double helix structure (no bridges)
-// Ψ₃(t,s) = [R·cos(ωt + sπ), R·sin(ωt + sπ), h·t]
+// DOUBLE HELIX: Classic DNA double helix structure
+// f(t,s) = [R·cos(ωt + sπ), R·sin(ωt + sπ), h·t]
 // ═══════════════════════════════════════════════════════════════
-const morphHelix = (ε: () => number): Vec3[] => {
+export const generateMathDoubleHelixLayout = (): Layout => {
+  
+  // Random helix parameters for variety with spacing variation
+  const baseRadius = 4 + Math.random() * 4; // Base helix radius (4-8)
+  const radiusVariation = 1 + Math.random() * 2; // Linear spacing variation (1-3)
+  const turns = 3 + Math.random() * 4; // Number of turns (3-7)
+  const height = 20 + Math.random() * 10; // Total height (20-30)
+  const phase2 = Math.PI + (Math.random() - 0.5) * 0.4; // Second strand phase (slight variation from 180°)
+  
+  console.log('🧬 HELIX REGENERATED:', { baseRadius: baseRadius.toFixed(2), radiusVariation: radiusVariation.toFixed(2), turns: turns.toFixed(1), height: height.toFixed(1), phase2: phase2.toFixed(2) });
+  
   const positions: Vec3[] = [];
   const pointsPerStrand = Math.floor(N / 2); // 50% per strand - no bridge points
   
   // Generate two helical strands
   for (let strand = 0; strand < 2; strand++) {
-    const phase = strand * Math.PI; // 180° offset for opposite strand
+    const phase = strand === 0 ? 0 : phase2; // Use variable phase for second strand
     
     for (let i = 0; i < pointsPerStrand; i++) {
       const t = i / (pointsPerStrand - 1);
-      const θ = 10 * Math.PI * t; // 5 complete turns
-      const R = 6; // Fixed radius for clean helix
-      const height = 25 * (t - 0.5); // Total height of 25 units
+      const θ = turns * 2 * Math.PI * t; // Variable number of turns
+      const helixHeight = height * (t - 0.5); // Variable total height
+      
+      // Linear spacing variation: radius changes along the helix length
+      const currentRadius = baseRadius + radiusVariation * t; // Linearly increases from base to base+variation
+      
+      // Size-dependent Brownian motion: use current radius as local size
+      const localSize = currentRadius;
       
       positions.push([
-        R * Math.cos(θ + phase) + ε(),
-        R * Math.sin(θ + phase) + ε(),
-        height + ε()
+        currentRadius * Math.cos(θ + phase) + universalBrownian(localSize),
+        currentRadius * Math.sin(θ + phase) + universalBrownian(localSize),
+        helixHeight + universalBrownian(localSize)
       ] as Vec3);
     }
   }
@@ -290,17 +345,15 @@ const morphHelix = (ε: () => number): Vec3[] => {
   while (positions.length < N) {
     const idx = positions.length % (2 * pointsPerStrand);
     const p = positions[idx];
+    // Use same size-dependent Brownian motion for consistency
+    const estimatedSize = Math.sqrt(p[0] * p[0] + p[1] * p[1]); // Estimate size from x,y distance
     positions.push([
-      p[0] + ε() * 0.5,
-      p[1] + ε() * 0.5,
-      p[2] + ε() * 0.5
+      p[0] + universalBrownian(estimatedSize) * 0.5,
+      p[1] + universalBrownian(estimatedSize) * 0.5,
+      p[2] + universalBrownian(estimatedSize) * 0.5
     ] as Vec3);
   }
-  
-  return positions;
-};
 
-const generateHelixEdges = (): [number, number][] => {
   const edges: [number, number][] = [];
   const n = Math.floor(N / 2);
   
@@ -314,38 +367,9 @@ const generateHelixEdges = (): [number, number][] => {
     edges.push([i, i + 1]);
   }
   
-  return edges;
-};
-
-// ═══════════════════════════════════════════════════════════════
-// DISK GALAXY: Flat spiral galaxy layout
-// ═══════════════════════════════════════════════════════════════
-export const generateMathDiskGalaxyLayout = (): Layout => {
-  const ε = noise(0.1);
-  const positions = morphDisk(ε);
-  const edges = generateDiskEdges();
   return makeLayout(positions, edges);
 };
 
-// ═══════════════════════════════════════════════════════════════
-// MOBIUS RIBBON: Möbius strip layout
-// ═══════════════════════════════════════════════════════════════
-export const generateMathMobiusRibbonLayout = (): Layout => {
-  const ε = noise(0.1);
-  const positions = morphRibbon(ε);
-  const edges = generateRibbonEdges();
-  return makeLayout(positions, edges);
-};
-
-// ═══════════════════════════════════════════════════════════════
-// DOUBLE HELIX: DNA double helix layout
-// ═══════════════════════════════════════════════════════════════
-export const generateMathDoubleHelixLayout = (): Layout => {
-  const ε = noise(0.1);
-  const positions = morphHelix(ε);
-  const edges = generateHelixEdges();
-  return makeLayout(positions, edges);
-};
 // ═══════════════════════════════════════════════════════════════
 // TORUS KNOT: Elegant curve wrapping around a torus (p,q)-knot
 // K(t) = [(R + r·cos(qt))·cos(pt), (R + r·cos(qt))·sin(pt), r·sin(qt)]
@@ -367,6 +391,8 @@ export const generateMathTorusKnotLayout = (): Layout => {
   const config = knots[Math.floor(Math.random() * knots.length)];
   const p = config.p;
   const q = config.q;
+  
+  console.log('🪢 TORUS KNOT REGENERATED:', { type: `(${p},${q})`, description: p === 2 && q === 3 ? 'Trefoil' : p === 3 && q === 2 ? 'Trefoil Mirror' : 'Complex' });
   const R = 8; // Major radius
   const r = 3; // Minor radius
   
@@ -449,6 +475,8 @@ export const generateMathSphericalLayout = (): Layout => {
   const l = 3 + Math.floor(Math.random() * 3); // Degree (3-5)
   const m = Math.floor(Math.random() * (l + 1)); // Order (0 to l)
   const A = 0.3 + Math.random() * 0.3; // Amplitude (0.3-0.6)
+  
+  console.log('🌍 SPHERICAL REGENERATED:', { degree: l, order: m, amplitude: A.toFixed(2) });
   const R = 10; // Base radius
   
   const positions: Vec3[] = [];
@@ -654,33 +682,55 @@ const lerpVec3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-// WORMHOLE: Asymmetric hyperboloid funnel with random parameters
-// H(u,v) = [r(v)·(1+αsin(u))·cos(u), r(v)·(1+αsin(u))·sin(u), v·h]
-// where r(v) = √(r0² + (v/a)²) creates hyperboloid shape
+// WORMHOLE: Truly asymmetric hyperboloid with different end shapes
+// H(u,v) = [r(v)·A(v,u)·cos(u), r(v)·A(v,u)·sin(u), v·h]
+// where r(v) and A(v,u) both vary to create asymmetric ends
 // ═══════════════════════════════════════════════════════════════
 export const generateMathWormholeLayout = (): Layout => {
   const ε = noise(0.15);
   
-  // Random hyperboloid parameters for variety
-  const r0 = 0.8 + Math.random() * 0.7; // Throat radius (0.8-1.5) - much narrower
-  const a = 0.15 + Math.random() * 0.2; // Shape parameter (0.15-0.35) - steeper slope
-  const α = 0.2 + Math.random() * 0.3; // Asymmetry strength (0.2-0.5)
+  // Balanced asymmetric parameters - both ends expand outward
+  const r0 = 1.0 + Math.random() * 0.5; // Throat radius (1.0-1.5)
+  const a1 = 1.2 + Math.random() * 0.6; // Exponential rate (1.2-1.8) -> e^(1/1.2) to e^(1/1.8) = 2.3 to 1.7  
+  const a2 = 2.0 + Math.random() * 2.0; // Linear rate (2.0-4.0) -> final radius 3.0 to 5.5
+  const α1 = 0.5 + Math.random() * 0.5; // Asymmetry strength at one end (0.5-1.0) 
+  const α2 = 0.2 + Math.random() * 0.3; // Different asymmetry at other end (0.2-0.5)
+  const spiral = 0.05 + Math.random() * 0.1; // Subtle spiral twist factor (0.05-0.15)
   
-  // Single equation: asymmetric hyperboloid surface
+  // Debug: Log regeneration with parameter values to verify it's truly regenerating
+  console.log('🌪️ WORMHOLE REGENERATED:', { r0: r0.toFixed(2), a1: a1.toFixed(2), a2: a2.toFixed(2), α1: α1.toFixed(2), α2: α2.toFixed(2) });
+  
+  // Single equation: truly asymmetric hyperboloid surface
   const positions = Array.from({length: N}, (_, i) => {
     const θ = (i % 27) / 27 * 2 * Math.PI; // Angle around hyperboloid
     const v = (Math.floor(i / 27) / 26 - 0.5) * 2; // Height parameter [-1, 1]
     
-    // Hyperboloid radius: r = √(r0² + (v/a)²)
-    const r = Math.sqrt(r0 * r0 + (v/a) * (v/a));
+    // Truly asymmetric radius function - both ends expand outward with different curves
+    let r: number;
+    if (v >= 0) {
+      // Top end: exponential expansion r = r0 * e^(v/a1)
+      // At v=0: r=r0, At v=1: r=r0*e^(1/a1) ≈ r0*[1.7-2.3] = smooth curved expansion
+      r = r0 * Math.exp(v / a1);
+    } else {
+      // Bottom end: linear expansion r = r0 + |v| * a2  
+      // At v=0: r=r0, At v=-1: r=r0+a2 ≈ r0+[2-4] = controlled linear expansion
+      r = r0 + Math.abs(v) * a2;
+    }
     
-    // Asymmetry factor: varies with angle
-    const asym = 1 + α * Math.sin(θ * 2); // Creates bulge on one side
+    // Asymmetry strength varies by end
+    const α = v >= 0 ? α1 : α2;
+    
+    // Gentle asymmetry factor: smooth variation with height
+    const spiralAngle = θ + spiral * v; // Add spiral twist
+    const asym = 1 + α * 0.3 * Math.sin(spiralAngle); // Much gentler variation for smoothness
+    
+    // Subtle smooth cylindrical variation - different sizes but smooth
+    const endDeform = 1; // Keep perfectly smooth cylinders
     
     return [
-      r * asym * Math.cos(θ) + ε(),
-      r * asym * Math.sin(θ) + ε(),
-      v * 12 + ε() // Increased vertical stretch for more dramatic slope
+      r * asym * endDeform * Math.cos(spiralAngle) + ε(),
+      r * asym * endDeform * Math.sin(spiralAngle) + ε(),
+      v * 12 + ε() // Vertical stretch
     ] as Vec3;
   });
   
@@ -698,6 +748,85 @@ export const generateMathWormholeLayout = (): Layout => {
     
     // Connect to next ring
     if (ring < rings - 1) edges.push([i, i + 27]);
+  }
+  
+  return makeLayout(positions, edges);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 🍶 KLEIN BOTTLE LAYOUT  
+// Non-orientable surface: f(u,v) = [x(u,v), y(u,v), z(u,v)]
+// Inside becomes outside - famous topological shape
+// ═══════════════════════════════════════════════════════════════
+export const generateMathKleinBottleLayout = (): Layout => {
+  const ε = noise(0.1);
+  
+  // Klein bottle parameters for variety
+  const scale = 8 + Math.random() * 4; // Overall size (8-12)
+  const radius = 2.5 + Math.random() * 1.0; // Base radius (2.5-3.5)
+  const twist = 0.8 + Math.random() * 0.4; // Twist factor (0.8-1.2)
+  
+  console.log('🍶 KLEIN BOTTLE REGENERATED:', { scale: scale.toFixed(2), radius: radius.toFixed(2), twist: twist.toFixed(2) });
+  
+  const positions: Vec3[] = [];
+  const uSteps = 32; // Steps in u direction
+  const vSteps = Math.floor(N / uSteps); // Steps in v direction
+  
+  for (let i = 0; i < N; i++) {
+    const uIndex = i % uSteps;
+    const vIndex = Math.floor(i / uSteps) % vSteps;
+    
+    const u = (uIndex / uSteps) * 2 * Math.PI;
+    const v = (vIndex / vSteps) * 2 * Math.PI;
+    
+    // Klein bottle parametric equations (classic bottle shape)
+    const cosu = Math.cos(u);
+    const sinu = Math.sin(u);
+    const cosv = Math.cos(v);
+    const sinv = Math.sin(v);
+    
+    // Simplified classical Klein bottle - bottle with self-intersecting neck
+    const r = radius * (2.5 + 1.5 * cosv);
+    
+    // Main bottle body
+    let x = (scale / 6) * r * cosu;
+    let y = (scale / 6) * r * sinu;
+    let z: number;
+    
+    // Height varies with bottle shape - wider at bottom, neck at top
+    if (v < Math.PI) {
+      // Bottom half - wide bottle body
+      z = (scale / 4) * (v - Math.PI/2) + twist * sinv * cosu;
+    } else {
+      // Top half - neck that curves back into the bottle
+      const neckFactor = 2 * Math.PI - v;
+      z = (scale / 4) * (v - Math.PI/2) - twist * scale * 0.3 * Math.sin(neckFactor) * cosu;
+      // Neck curves inward (self-intersection)
+      x = x * (0.6 + 0.4 * Math.sin(neckFactor));
+      y = y * (0.6 + 0.4 * Math.sin(neckFactor));
+    }
+    
+    positions.push([
+      x + ε(),
+      y + ε(),
+      z + ε()
+    ] as Vec3);
+  }
+  
+  // Generate edges following Klein bottle surface topology
+  const edges: [number, number][] = [];
+  
+  for (let i = 0; i < N; i++) {
+    const uIndex = i % uSteps;
+    const vIndex = Math.floor(i / uSteps) % vSteps;
+    
+    // Connect along u direction (wrapping)
+    const nextU = ((uIndex + 1) % uSteps) + vIndex * uSteps;
+    if (nextU < N) edges.push([i, nextU]);
+    
+    // Connect along v direction (wrapping)
+    const nextV = uIndex + ((vIndex + 1) % vSteps) * uSteps;
+    if (nextV < N) edges.push([i, nextV]);
   }
   
   return makeLayout(positions, edges);

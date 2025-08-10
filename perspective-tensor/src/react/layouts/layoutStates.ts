@@ -8,18 +8,20 @@ import {
   generateMathDoubleHelixLayout,
   generateMathTorusKnotLayout,
   generateMathSphericalLayout,
-  generateMathHypercubeLayout
+  generateMathHypercubeLayout,
+  generateMathKleinBottleLayout
 } from './mathematicalLayouts';
 
 // Ordered array of available layout states
 export const LAYOUT_STATES = [
   'Tensor',
+  'Wormhole',
   'DiskGalaxy', 
   'Graph',
   'MobiusRibbon',
-  'Wormhole',
   'DoubleHelix',
   'TorusKnot',
+  'KleinBottle',
   'Spherical',
   'Hypercube'
 ] as const;
@@ -35,6 +37,7 @@ export const LAYOUT_GENERATORS: Record<LayoutState, () => Layout> = {
   'Wormhole': generateMathWormholeLayout,
   'DoubleHelix': generateMathDoubleHelixLayout,
   'TorusKnot': generateMathTorusKnotLayout,
+  'KleinBottle': generateMathKleinBottleLayout,
   'Spherical': generateMathSphericalLayout,
   'Hypercube': generateMathHypercubeLayout
 };
