@@ -1,6 +1,7 @@
 import type { Shape3D, ShapeType, Vec3 } from '../core/types';
-import { MathematicalShapes } from './MathematicalShapes';
-import { ProceduralShapes } from './ProceduralShapes';
+// TODO: Implement these classes when needed
+// import { MathematicalShapes } from './MathematicalShapes';
+// import { ProceduralShapes } from './ProceduralShapes';
 
 // ═══════════════════════════════════════════════════════════════
 // UNIFIED SHAPE LIBRARY
@@ -10,8 +11,8 @@ export class ShapeLibrary {
   private static instance: ShapeLibrary;
   private shapes: Map<string, Shape3D> = new Map();
   private generators: Map<string, (pointCount: number) => Shape3D> = new Map();
-  private mathematical: MathematicalShapes;
-  private procedural: ProceduralShapes;
+  // private mathematical: MathematicalShapes;
+  // private procedural: ProceduralShapes;
   
   static getInstance(): ShapeLibrary {
     if (!ShapeLibrary.instance) {
@@ -21,9 +22,9 @@ export class ShapeLibrary {
   }
   
   constructor() {
-    this.mathematical = new MathematicalShapes();
-    this.procedural = new ProceduralShapes();
-    this.registerBuiltInShapes();
+    // this.mathematical = new MathematicalShapes();
+    // this.procedural = new ProceduralShapes();
+    // this.registerBuiltInShapes();
   }
   
   // ═══════════════════════════════════════════════════════════════
@@ -37,9 +38,9 @@ export class ShapeLibrary {
       'helix', 'torus', 'klein', 'sphere', 'hypercube'
     ];
     
-    mathShapes.forEach(name => {
-      this.generators.set(name, (count) => this.mathematical.generate(name, count));
-    });
+    // mathShapes.forEach(name => {
+    //   this.generators.set(name, (count) => this.mathematical.generate(name, count));
+    // });
     
     // Register procedural generators
     const proceduralTypes = {
@@ -48,11 +49,11 @@ export class ShapeLibrary {
       abstract: ['crystal', 'nebula', 'fractal', 'wave']
     };
     
-    Object.entries(proceduralTypes).forEach(([category, types]) => {
-      types.forEach(type => {
-        this.generators.set(type, (count) => this.procedural.generate(category as any, type, count));
-      });
-    });
+    // Object.entries(proceduralTypes).forEach(([category, types]) => {
+    //   types.forEach(type => {
+    //     this.generators.set(type, (count) => this.procedural.generate(category as any, type, count));
+    //   });
+    // });
   }
   
   // ═══════════════════════════════════════════════════════════════

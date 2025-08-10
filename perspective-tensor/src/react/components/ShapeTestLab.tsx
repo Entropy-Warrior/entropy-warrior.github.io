@@ -1,4 +1,4 @@
-import React, { useState, useRef, Suspense, useMemo, useEffect } from 'react';
+import React, { useState, useRef, Suspense, useMemo, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stats, Grid, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -23,6 +23,15 @@ import {
   BROWNIAN_PRESETS,
   type BrownianState
 } from '../animation/utils/brownian';
+import {
+  type ThemeColor,
+  type ThemeColors,
+  getThemeColor,
+  createThemeColor,
+  darkToLight,
+  DEFAULT_THEME_COLORS
+} from '../animation/utils/theme';
+import { getBounds, centerPositions } from '../animation/utils/transforms';
 
 // ═══════════════════════════════════════════════════════════════
 // SHAPE CONFIGURATION
@@ -54,10 +63,13 @@ interface ShapeVisualizerProps {
   pointOpacity: number;
   edgeColor: string;
   edgeOpacity: number;
+  edgeStyle: 'solid' | 'dashed' | 'dotted';
   autoRotate: boolean;
   rotationSpeed: number;
   brownianMotion: boolean;
-  brownianPreset: string;
+  brownianAmplitude: number;
+  brownianSpeed: number;
+  brownianDamping: number;
 }
 
 function ShapeVisualizer({ 
@@ -69,25 +81,49 @@ function ShapeVisualizer({
   pointOpacity,
   edgeColor,
   edgeOpacity,
+  edgeStyle,
   autoRotate,
   rotationSpeed,
   brownianMotion,
-  brownianPreset
+  brownianAmplitude,
+  brownianSpeed,
+  brownianDamping
 }: ShapeVisualizerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const pointsRef = useRef<THREE.Points>(null);
   const edgesRef = useRef<THREE.LineSegments>(null);
   
-  // Initialize Brownian motion state
+  // Log when component mounts or key props change
+  useEffect(() => {
+    if (DEBUG_MODE) {
+      console.log('🎨 SHAPE VISUALIZER RENDERING:', {
+        shapeId: shape.id,
+        pointsToRender: shape.positions.length,
+        edgesToRender: shape.edges?.length || 0,
+        pointSize,
+        pointColor,
+        showEdges,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [shape.id, shape.positions.length]);
+  
+  // Initialize Brownian motion state - reset when config changes
   const brownianState = useRef<BrownianState>(createBrownianState(shape.positions.length));
   const originalPositions = useRef<Vec3[]>(shape.positions);
+  
+  // Reset Brownian state when settings change or motion is toggled
+  useEffect(() => {
+    brownianState.current = createBrownianState(shape.positions.length);
+  }, [shape.positions.length, brownianMotion, brownianAmplitude, brownianSpeed, brownianDamping]);
   
   // Generate random sizes for each point
   const pointSizes = useMemo(() => {
     const sizes = new Float32Array(shape.positions.length);
     for (let i = 0; i < shape.positions.length; i++) {
       // Random size between pointSize and pointSize * (1 + variation)
-      sizes[i] = pointSize * (1 + Math.random() * pointSizeVariation);
+      // Ensure minimum size for visibility
+      sizes[i] = Math.max(0.1, pointSize * (1 + Math.random() * pointSizeVariation));
     }
     return sizes;
   }, [shape.positions.length, pointSize, pointSizeVariation]);
@@ -99,37 +135,33 @@ function ShapeVisualizer({
       groupRef.current.rotation.y += rotationSpeed * delta;
     }
     
-    // Brownian motion
-    if (brownianMotion && pointsRef.current) {
-      const preset = BROWNIAN_PRESETS[brownianPreset] || BROWNIAN_PRESETS.standard;
-      updateBrownianMotion(brownianState.current, preset, delta * 1000);
+    // Always start from original positions, then apply Brownian if enabled
+    if (pointsRef.current) {
+      let displayPositions = originalPositions.current;
       
-      // Apply Brownian offsets to positions
-      const newPositions = applyBrownianToPositions(originalPositions.current, brownianState.current);
-      const posArray = new Float32Array(newPositions.flat());
+      // Apply Brownian motion as an overlay if enabled
+      if (brownianMotion) {
+        const config = {
+          amplitude: brownianAmplitude,
+          speed: brownianSpeed,
+          damping: brownianDamping
+        };
+        updateBrownianMotion(brownianState.current, config, delta * 1000);
+        
+        // Apply Brownian offsets to create display positions (non-destructive)
+        displayPositions = applyBrownianToPositions(originalPositions.current, brownianState.current);
+      }
+      
+      // Update point positions
+      const posArray = new Float32Array(displayPositions.flat());
       pointsRef.current.geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
       
       // Update edges if visible
       if (showEdges && edgesRef.current && shape.edges) {
         const edgePositions: number[] = [];
         shape.edges.forEach(([a, b]) => {
-          if (a < newPositions.length && b < newPositions.length) {
-            edgePositions.push(...newPositions[a], ...newPositions[b]);
-          }
-        });
-        edgesRef.current.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edgePositions), 3));
-      }
-    } else if (!brownianMotion && pointsRef.current) {
-      // Reset to original positions if Brownian is disabled
-      const posArray = new Float32Array(originalPositions.current.flat());
-      pointsRef.current.geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-      
-      // Reset edges too
-      if (showEdges && edgesRef.current && shape.edges) {
-        const edgePositions: number[] = [];
-        shape.edges.forEach(([a, b]) => {
-          if (a < originalPositions.current.length && b < originalPositions.current.length) {
-            edgePositions.push(...originalPositions.current[a], ...originalPositions.current[b]);
+          if (a < displayPositions.length && b < displayPositions.length) {
+            edgePositions.push(...displayPositions[a], ...displayPositions[b]);
           }
         });
         edgesRef.current.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edgePositions), 3));
@@ -143,6 +175,19 @@ function ShapeVisualizer({
     const positions = new Float32Array(shape.positions.flat());
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(pointSizes, 1));
+    
+    // Debug logging
+    if (DEBUG_MODE) {
+      console.log('📊 Creating point geometry buffer:', {
+        shapeId: shape.id,
+        shapePositions: shape.positions.length,
+        pointSizesLength: pointSizes.length,
+        positionsBufferLength: positions.length / 3,
+        firstPointSize: pointSizes[0],
+        avgPointSize: pointSizes.reduce((a, b) => a + b, 0) / pointSizes.length
+      });
+    }
+    
     return geometry;
   }, [shape, pointSizes]);
   
@@ -163,6 +208,68 @@ function ShapeVisualizer({
     return geometry;
   }, [shape]);
   
+  // Custom shader material for edges with dash support
+  const edgesMaterial = useMemo(() => {
+    // Set dash parameters based on style
+    let dashSize = 1.0;
+    let gapSize = 0.0;
+    let scale = 10.0;
+    
+    if (edgeStyle === 'dashed') {
+      dashSize = 0.3;
+      gapSize = 0.2;
+      scale = 15.0;
+    } else if (edgeStyle === 'dotted') {
+      dashSize = 0.05;
+      gapSize = 0.15;
+      scale = 30.0;
+    }
+    
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        color: { value: new THREE.Color(edgeColor) },
+        opacity: { value: edgeOpacity },
+        dashSize: { value: dashSize },
+        gapSize: { value: gapSize },
+        scale: { value: scale }
+      },
+      vertexShader: `
+        varying vec3 vPosition;
+        void main() {
+          vPosition = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 color;
+        uniform float opacity;
+        uniform float dashSize;
+        uniform float gapSize;
+        uniform float scale;
+        
+        varying vec3 vPosition;
+        
+        void main() {
+          // For solid lines, don't discard any fragments
+          if (gapSize > 0.0) {
+            // Calculate distance along the line for dashing
+            float totalSize = dashSize + gapSize;
+            float modulo = mod(length(vPosition) * scale, totalSize);
+            
+            // Discard fragments in gaps for dashed/dotted line effect
+            if (modulo > dashSize) {
+              discard;
+            }
+          }
+          
+          gl_FragColor = vec4(color, opacity);
+        }
+      `,
+      transparent: true,
+      linewidth: 1
+    });
+  }, [edgeColor, edgeOpacity, edgeStyle]);
+  
   // Custom shader material for variable point sizes
   const pointsMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -177,7 +284,9 @@ function ShapeVisualizer({
         void main() {
           vSize = size;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (300.0 / -mvPosition.z);
+          // Ensure minimum point size for visibility
+          float distance = length(mvPosition.xyz);
+          gl_PointSize = max(1.0, size * (300.0 / distance));
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -219,8 +328,9 @@ function ShapeVisualizer({
           <lineBasicMaterial 
             color={edgeColor} 
             transparent={true}
-            opacity={0.5}
-            linewidth={1}
+            opacity={edgeOpacity}
+            // Note: linewidth doesn't work in most WebGL implementations
+            // We'll need to use a custom shader or mesh lines for thickness
           />
         </lineSegments>
       )}
@@ -232,61 +342,619 @@ function ShapeVisualizer({
 // MAIN TEST LAB COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS INTERFACE
+// ═══════════════════════════════════════════════════════════════
+
+interface ShapeSettings {
+  selectedShape: keyof typeof SHAPES;
+  pointCount: number;
+  showEdges: boolean;
+  showGrid: boolean;
+  showStats: boolean;
+  pointSize: number;
+  pointSizeVariation: number;
+  pointColor: ThemeColor; // Only ThemeColor now
+  pointOpacity: number;
+  edgeColor: ThemeColor; // Only ThemeColor now
+  edgeOpacity: number;
+  edgeStyle: 'solid' | 'dashed' | 'dotted';
+  autoRotate: boolean;
+  rotationSpeed: number;
+  theme: 'dark' | 'light';
+  brownianMotion: boolean;
+  brownianAmplitude: number;
+  brownianSpeed: number;
+  brownianDamping: number;
+}
+
+// Debug mode flag - set to true to enable console logging
+const DEBUG_MODE = true;
+
+// Complete settings structure for all shapes
+interface AllShapeSettings {
+  currentShape: keyof typeof SHAPES;
+  globalSettings: Omit<ShapeSettings, 'selectedShape' | 'pointCount'>;
+  shapeSpecific: {
+    [key in keyof typeof SHAPES]?: {
+      pointCount: number;
+      // Add more shape-specific settings here if needed
+    };
+  };
+}
+
 export function ShapeTestLab() {
-  const [selectedShape, setSelectedShape] = useState<keyof typeof SHAPES>('tensor');
-  const [pointCount, setPointCount] = useState(1000);
-  const [showEdges, setShowEdges] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
-  const [showStats, setShowStats] = useState(true);
-  const [pointSize, setPointSize] = useState(1.0);
-  const [pointSizeVariation, setPointSizeVariation] = useState(0.5);
-  const [pointColor, setPointColor] = useState('#ffffff');
-  const [edgeColor, setEdgeColor] = useState('#00ffff');
-  const [autoRotate, setAutoRotate] = useState(true);
-  const [rotationSpeed, setRotationSpeed] = useState(0.5);
-  const [backgroundColor, setBackgroundColor] = useState('#1a1a2e');
-  const [brownianMotion, setBrownianMotion] = useState(false);
-  const [brownianPreset, setBrownianPreset] = useState('standard');
-  const [regenerateKey, setRegenerateKey] = useState(0);
+  // Use lazy initialization to load ALL settings ONLY on first mount
+  const [allSettings] = useState<AllShapeSettings>(() => {
+    const saved = localStorage.getItem('shapeTestLabAllSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (DEBUG_MODE) {
+          console.log('🚀 COMPONENT MOUNTING - Loading complete settings:', {
+            allSettings: parsed,
+            timestamp: new Date().toISOString()
+          });
+        }
+        return parsed;
+      } catch (e) {
+        // Fall back to default settings
+      }
+    }
+    // Default settings structure
+    return {
+      currentShape: 'tensor' as keyof typeof SHAPES,
+      globalSettings: {
+        showEdges: true,
+        showGrid: true,
+        showStats: true,
+        pointSize: 1.0,
+        pointSizeVariation: 0.5,
+        pointColor: DEFAULT_THEME_COLORS.pointColor,
+        pointOpacity: 0.9,
+        edgeColor: DEFAULT_THEME_COLORS.edgeColor,
+        edgeOpacity: 0.5,
+        edgeStyle: 'solid' as const,
+        autoRotate: true,
+        rotationSpeed: 0.5,
+        theme: 'dark' as const,
+        brownianMotion: false,
+        brownianAmplitude: 1.5,
+        brownianSpeed: 0.008,
+        brownianDamping: 0.997
+      },
+      shapeSpecific: {}
+    };
+  });
   
-  // Generate shape
+  // Current shape state
+  const [selectedShape, setSelectedShape] = useState<keyof typeof SHAPES>(allSettings.currentShape);
+  
+  // Shape-specific settings state
+  const [shapeSpecificSettings, setShapeSpecificSettings] = useState(allSettings.shapeSpecific);
+  
+  // Get point count for current shape
+  const pointCount = shapeSpecificSettings[selectedShape]?.pointCount || 1000;
+  
+  // Custom setter that updates shape-specific settings
+  const setPointCount = (count: number) => {
+    setShapeSpecificSettings(prev => ({
+      ...prev,
+      [selectedShape]: {
+        ...prev[selectedShape],
+        pointCount: count
+      }
+    }));
+    if (DEBUG_MODE) {
+      console.log(`📐 Point count for ${selectedShape} set to ${count}`);
+    }
+  };
+  // Global settings that apply to all shapes
+  const [showEdges, setShowEdges] = useState(allSettings.globalSettings.showEdges);
+  const [showGrid, setShowGrid] = useState(allSettings.globalSettings.showGrid);
+  const [showStats, setShowStats] = useState(allSettings.globalSettings.showStats);
+  const [pointSize, setPointSize] = useState(allSettings.globalSettings.pointSize);
+  const [pointSizeVariation, setPointSizeVariation] = useState(allSettings.globalSettings.pointSizeVariation);
+  const [pointColorTheme, setPointColorTheme] = useState<ThemeColor>(allSettings.globalSettings.pointColor);
+  const [pointOpacity, setPointOpacity] = useState(allSettings.globalSettings.pointOpacity);
+  const [edgeColorTheme, setEdgeColorTheme] = useState<ThemeColor>(allSettings.globalSettings.edgeColor);
+  const [edgeOpacity, setEdgeOpacity] = useState(allSettings.globalSettings.edgeOpacity);
+  const [edgeStyle, setEdgeStyle] = useState<'solid' | 'dashed' | 'dotted'>(allSettings.globalSettings.edgeStyle || 'solid');
+  const [autoRotate, setAutoRotate] = useState(allSettings.globalSettings.autoRotate);
+  const [rotationSpeed, setRotationSpeed] = useState(allSettings.globalSettings.rotationSpeed);
+  const [theme, setTheme] = useState<'dark' | 'light'>(allSettings.globalSettings.theme);
+  const [brownianMotion, setBrownianMotion] = useState(allSettings.globalSettings.brownianMotion);
+  const [brownianAmplitude, setBrownianAmplitude] = useState(allSettings.globalSettings.brownianAmplitude);
+  const [brownianSpeed, setBrownianSpeed] = useState(allSettings.globalSettings.brownianSpeed);
+  const [brownianDamping, setBrownianDamping] = useState(allSettings.globalSettings.brownianDamping);
+  const [regenerateKey, setRegenerateKey] = useState(0);
+  const [savedPresets, setSavedPresets] = useState<Record<string, ShapeSettings>>({});
+  
+  // Get actual colors based on current theme
+  const pointColor = getThemeColor(pointColorTheme, theme);
+  const edgeColor = getThemeColor(edgeColorTheme, theme);
+  
+  // Theme-based colors
+  const backgroundColor = theme === 'dark' ? '#1a1a2e' : '#f0f0f0';
+  const panelBackground = theme === 'dark' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)';
+  const textColor = theme === 'dark' ? '#fff' : '#000';
+  const inputBackground = theme === 'dark' ? '#333' : '#fff';
+  const inputBorder = theme === 'dark' ? '#555' : '#ccc';
+  const gridColor = theme === 'dark' ? '#444' : '#bbb';
+  const gridSectionColor = theme === 'dark' ? '#666' : '#999';
+  
+  // Generate shape - include selectedShape in dependencies to trigger re-render
   const currentShape = useMemo(() => {
-    return SHAPES[selectedShape].generator(pointCount);
+    if (DEBUG_MODE) {
+      console.log('🔄 GENERATING NEW SHAPE:', {
+        shapeType: selectedShape,
+        requestedPointCount: pointCount,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const shape = SHAPES[selectedShape].generator(pointCount);
+    
+    // Normalize shape to standard viewport size
+    const TARGET_SIZE = 10; // Standard size for all shapes
+    
+    // First center the shape
+    const { centered, center } = centerPositions(shape.positions);
+    
+    // Get bounds of centered shape
+    const bounds = getBounds(centered);
+    const maxDim = Math.max(...bounds.size);
+    
+    if (DEBUG_MODE) {
+      console.log('📊 Shape normalization:', {
+        shape: selectedShape,
+        actualPointsGenerated: shape.positions.length,
+        requestedPoints: pointCount,
+        edgeCount: shape.edges?.length || 0,
+        originalBounds: bounds,
+        maxDimension: maxDim,
+        scaleFactor: maxDim > 0 ? TARGET_SIZE / maxDim : 1
+      });
+    }
+    
+    // Scale to target size if needed
+    let normalizedPositions = centered;
+    if (maxDim > 0) {
+      const scaleFactor = TARGET_SIZE / maxDim;
+      normalizedPositions = centered.map(p => [
+        p[0] * scaleFactor,
+        p[1] * scaleFactor,
+        p[2] * scaleFactor
+      ] as Vec3);
+    }
+    
+    const finalShape = {
+      ...shape,
+      positions: normalizedPositions
+    };
+    
+    if (DEBUG_MODE) {
+      console.log('✅ SHAPE READY FOR RENDER:', {
+        id: finalShape.id,
+        finalPointCount: finalShape.positions.length,
+        hasEdges: !!finalShape.edges,
+        edgeCount: finalShape.edges?.length || 0
+      });
+    }
+    
+    return finalShape;
   }, [selectedShape, pointCount, regenerateKey]);
   
   const handleRegenerate = () => {
     setRegenerateKey(prev => prev + 1);
   };
   
+  // ═══════════════════════════════════════════════════════════════
+  // SETTINGS MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════
+  
+  // Get current settings - defined as a callback to avoid stale closures
+  // NOTE: We exclude selectedShape AND pointCount from persistent settings
+  // Point counts are stored per-shape
+  const getCurrentSettings = useCallback((): Omit<ShapeSettings, 'selectedShape' | 'pointCount'> => ({
+    showEdges,
+    showGrid,
+    showStats,
+    pointSize,
+    pointSizeVariation,
+    pointColor: pointColorTheme,
+    pointOpacity,
+    edgeColor: edgeColorTheme,
+    edgeOpacity,
+    edgeWidth,
+    edgeStyle,
+    autoRotate,
+    rotationSpeed,
+    theme,
+    brownianMotion,
+    brownianAmplitude,
+    brownianSpeed,
+    brownianDamping
+  }), [
+    showEdges, showGrid, showStats,
+    pointSize, pointSizeVariation, pointColorTheme, pointOpacity,
+    edgeColorTheme, edgeOpacity, edgeWidth, edgeStyle, autoRotate, rotationSpeed,
+    theme, brownianMotion, brownianAmplitude, brownianSpeed, brownianDamping
+  ]);
+  
+  // Apply settings
+  const applySettings = (settings: Partial<ShapeSettings>) => {
+    if (settings.selectedShape !== undefined) {
+      setSelectedShape(settings.selectedShape);
+    }
+    if (settings.pointCount !== undefined) {
+      setPointCount(settings.pointCount);
+    }
+    if (settings.showEdges !== undefined) {
+      setShowEdges(settings.showEdges);
+    }
+    if (settings.showGrid !== undefined) {
+      setShowGrid(settings.showGrid);
+    }
+    if (settings.showStats !== undefined) {
+      setShowStats(settings.showStats);
+    }
+    if (settings.pointSize !== undefined) {
+      setPointSize(settings.pointSize);
+    }
+    if (settings.pointSizeVariation !== undefined) {
+      setPointSizeVariation(settings.pointSizeVariation);
+    }
+    
+    // Handle both legacy string colors and new ThemeColor objects
+    if (settings.pointColor !== undefined) {
+      if (typeof settings.pointColor === 'string') {
+        setPointColorTheme(createThemeColor(settings.pointColor));
+      } else {
+        setPointColorTheme(settings.pointColor);
+      }
+    }
+    
+    if (settings.pointOpacity !== undefined) {
+      setPointOpacity(settings.pointOpacity);
+    }
+    
+    // Handle both legacy string colors and new ThemeColor objects
+    if (settings.edgeColor !== undefined) {
+      if (typeof settings.edgeColor === 'string') {
+        setEdgeColorTheme(createThemeColor(settings.edgeColor));
+      } else {
+        setEdgeColorTheme(settings.edgeColor);
+      }
+    }
+    
+    if (settings.edgeOpacity !== undefined) {
+      setEdgeOpacity(settings.edgeOpacity);
+    }
+    if (settings.edgeStyle !== undefined) {
+      setEdgeStyle(settings.edgeStyle);
+    }
+    if (settings.autoRotate !== undefined) {
+      setAutoRotate(settings.autoRotate);
+    }
+    if (settings.rotationSpeed !== undefined) {
+      setRotationSpeed(settings.rotationSpeed);
+    }
+    if (settings.theme !== undefined) {
+      setTheme(settings.theme);
+    }
+    if (settings.brownianMotion !== undefined) {
+      setBrownianMotion(settings.brownianMotion);
+    }
+    if (settings.brownianAmplitude !== undefined) {
+      setBrownianAmplitude(settings.brownianAmplitude);
+    }
+    if (settings.brownianSpeed !== undefined) {
+      setBrownianSpeed(settings.brownianSpeed);
+    }
+    if (settings.brownianDamping !== undefined) {
+      setBrownianDamping(settings.brownianDamping);
+    }
+  };
+  
+  // Export complete settings as JSON
+  const exportSettings = () => {
+    const completeSettings: AllShapeSettings = {
+      currentShape: selectedShape,
+      globalSettings: {
+        showEdges,
+        showGrid,
+        showStats,
+        pointSize,
+        pointSizeVariation,
+        pointColor: pointColorTheme,
+        pointOpacity,
+        edgeColor: edgeColorTheme,
+        edgeOpacity,
+        edgeStyle,
+        autoRotate,
+        rotationSpeed,
+        theme,
+        brownianMotion,
+        brownianAmplitude,
+        brownianSpeed,
+        brownianDamping
+      },
+      shapeSpecific: shapeSpecificSettings
+    };
+    const json = JSON.stringify(completeSettings, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shape-settings-${selectedShape}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  
+  // Import settings from JSON
+  const importSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string) as AllShapeSettings;
+        
+        // Apply global settings
+        if (imported.globalSettings) {
+          setShowEdges(imported.globalSettings.showEdges);
+          setShowGrid(imported.globalSettings.showGrid);
+          setShowStats(imported.globalSettings.showStats);
+          setPointSize(imported.globalSettings.pointSize);
+          setPointSizeVariation(imported.globalSettings.pointSizeVariation);
+          setPointColorTheme(imported.globalSettings.pointColor);
+          setPointOpacity(imported.globalSettings.pointOpacity);
+          setEdgeColorTheme(imported.globalSettings.edgeColor);
+          setEdgeOpacity(imported.globalSettings.edgeOpacity);
+          if (imported.globalSettings.edgeStyle) {
+            setEdgeStyle(imported.globalSettings.edgeStyle);
+          }
+          setAutoRotate(imported.globalSettings.autoRotate);
+          setRotationSpeed(imported.globalSettings.rotationSpeed);
+          setTheme(imported.globalSettings.theme);
+          setBrownianMotion(imported.globalSettings.brownianMotion);
+          setBrownianAmplitude(imported.globalSettings.brownianAmplitude);
+          setBrownianSpeed(imported.globalSettings.brownianSpeed);
+          setBrownianDamping(imported.globalSettings.brownianDamping);
+        }
+        
+        // Apply shape-specific settings
+        if (imported.shapeSpecific) {
+          setShapeSpecificSettings(imported.shapeSpecific);
+        }
+        
+        // Set current shape
+        if (imported.currentShape) {
+          setSelectedShape(imported.currentShape);
+        }
+        
+        if (DEBUG_MODE) {
+          console.log('📥 Settings imported successfully:', imported);
+        }
+      } catch (error) {
+        console.error('Failed to import settings:', error);
+        alert('Failed to import settings. Please check the file format.');
+      }
+    };
+    reader.readAsText(file);
+  };
+  
+  // Load saved presets from localStorage
+  useEffect(() => {
+    const savedPresetsData = localStorage.getItem('shapeTestLabPresets');
+    if (savedPresetsData) {
+      try {
+        setSavedPresets(JSON.parse(savedPresetsData));
+      } catch (error) {
+        console.error('Failed to load presets:', error);
+      }
+    }
+  }, []);
+  
+  // Auto-save ALL settings to localStorage whenever ANY setting changes
+  useEffect(() => {
+    const completeSettings: AllShapeSettings = {
+      currentShape: selectedShape,
+      globalSettings: {
+        showEdges,
+        showGrid,
+        showStats,
+        pointSize,
+        pointSizeVariation,
+        pointColor: pointColorTheme,
+        pointOpacity,
+        edgeColor: edgeColorTheme,
+        edgeOpacity,
+        edgeStyle,
+        autoRotate,
+        rotationSpeed,
+        theme,
+        brownianMotion,
+        brownianAmplitude,
+        brownianSpeed,
+        brownianDamping
+      },
+      shapeSpecific: shapeSpecificSettings
+    };
+    
+    localStorage.setItem('shapeTestLabAllSettings', JSON.stringify(completeSettings));
+    if (DEBUG_MODE) {
+      console.log('💾 Complete settings saved:', {
+        currentShape: selectedShape,
+        globalSettings: completeSettings.globalSettings,
+        shapeSpecificCounts: Object.fromEntries(
+          Object.entries(shapeSpecificSettings).map(([shape, settings]) => 
+            [shape, settings?.pointCount]
+          )
+        ),
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [
+    selectedShape, shapeSpecificSettings,
+    showEdges, showGrid, showStats,
+    pointSize, pointSizeVariation, pointColorTheme, pointOpacity,
+    edgeColorTheme, edgeOpacity, edgeWidth, autoRotate, rotationSpeed,
+    theme, brownianMotion, brownianAmplitude, brownianSpeed, brownianDamping
+  ]);
+  
+  // Save preset (includes selectedShape for presets)
+  const savePreset = (name: string) => {
+    const settings = { selectedShape, ...getCurrentSettings() } as ShapeSettings;
+    const newPresets = { ...savedPresets, [name]: settings };
+    setSavedPresets(newPresets);
+    localStorage.setItem('shapeTestLabPresets', JSON.stringify(newPresets));
+  };
+  
+  // Load preset
+  const loadPreset = (name: string) => {
+    const preset = savedPresets[name];
+    if (preset) {
+      applySettings(preset);
+    }
+  };
+  
+  // Delete preset
+  const deletePreset = (name: string) => {
+    const newPresets = { ...savedPresets };
+    delete newPresets[name];
+    setSavedPresets(newPresets);
+    localStorage.setItem('shapeTestLabPresets', JSON.stringify(newPresets));
+  };
+  
+  const [panelWidth, setPanelWidth] = useState(380);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+  
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = panelWidth;
+    e.preventDefault();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      
+      const deltaX = e.clientX - dragStartX.current;
+      const newWidth = Math.max(280, Math.min(1200, dragStartWidth.current + deltaX));
+      setPanelWidth(newWidth);
+    };
+    
+    const handleMouseUp = () => {
+      if (isDragging.current) {
+        isDragging.current = false;
+        document.body.style.cursor = 'auto';
+        document.body.style.userSelect = 'auto';
+      }
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+  
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', position: 'relative' }}>
       {/* Control Panel */}
       <div style={{
-        width: '320px',
+        width: `${panelWidth}px`,
+        minWidth: `${panelWidth}px`,
+        maxWidth: `${panelWidth}px`,
         height: '100vh',
-        background: 'rgba(0, 0, 0, 0.9)',
+        background: panelBackground,
         padding: '20px',
         overflowY: 'auto',
-        borderRight: '1px solid rgba(255, 255, 255, 0.1)'
+        borderRight: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+        color: textColor,
+        position: 'relative',
+        flexShrink: 0
       }}>
-        <h2 style={{ color: '#fff', marginBottom: '20px', fontSize: '24px' }}>
-          Shape Testing Lab
-        </h2>
+        {/* Resize Handle */}
+        <div
+          onMouseDown={handleMouseDown}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = theme === 'dark' ? 'rgba(100, 100, 255, 0.5)' : 'rgba(100, 100, 255, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)';
+          }}
+          style={{
+            position: 'absolute',
+            right: -4,
+            top: 0,
+            width: '8px',
+            height: '100%',
+            cursor: 'col-resize',
+            background: theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+            transition: 'background 0.2s',
+            zIndex: 1000
+          }}
+        />
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ color: textColor, fontSize: '24px', margin: 0 }}>
+            Shape Testing Lab
+          </h2>
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            style={{
+              padding: '6px 12px',
+              background: theme === 'dark' ? '#444' : '#ddd',
+              color: textColor,
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+        </div>
         
         {/* Shape Selection */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '8px' }}>
+          <label style={{ color: textColor, display: 'block', marginBottom: '8px' }}>
             Shape Type
           </label>
           <select
             value={selectedShape}
-            onChange={(e) => setSelectedShape(e.target.value as keyof typeof SHAPES)}
+            onChange={(e) => {
+              const newShape = e.target.value as keyof typeof SHAPES;
+              if (DEBUG_MODE) {
+                console.log('🔀 SHAPE SELECTION CHANGED:', {
+                  from: selectedShape,
+                  to: newShape,
+                  currentPointSize: pointSize,
+                  currentPointCount: pointCount,
+                  currentPointColor: pointColorTheme,
+                  willTheseSettingsPersist: 'YES - settings should remain the same',
+                  currentSettings: getCurrentSettings()
+                });
+              }
+              setSelectedShape(newShape);
+            }}
             style={{
               width: '100%',
               padding: '8px',
-              background: '#333',
-              color: '#fff',
-              border: '1px solid #555',
+              background: inputBackground,
+              color: textColor,
+              border: `1px solid ${inputBorder}`,
               borderRadius: '4px',
               fontSize: '14px'
             }}
@@ -320,7 +988,12 @@ export function ShapeTestLab() {
         
         {/* Shape Info */}
         <div style={{ marginBottom: '20px', color: '#aaa', fontSize: '12px' }}>
-          <div>Points: {currentShape.positions.length}</div>
+          <div>Rendered Points: {currentShape.positions.length}</div>
+          {currentShape.positions.length !== pointCount && (
+            <div style={{ color: '#ffaa00', fontSize: '11px' }}>
+              (Requested: {pointCount}, shape uses {currentShape.positions.length})
+            </div>
+          )}
           <div>Edges: {currentShape.edges?.length || 0}</div>
           <div>Complexity: {(currentShape.metadata.complexity * 100).toFixed(0)}%</div>
         </div>
@@ -336,7 +1009,13 @@ export function ShapeTestLab() {
             max="3000"
             step="100"
             value={pointCount}
-            onChange={(e) => setPointCount(Number(e.target.value))}
+            onChange={(e) => {
+              const newCount = Number(e.target.value);
+              if (DEBUG_MODE) {
+                console.log('📈 Point count changed:', { from: pointCount, to: newCount });
+              }
+              setPointCount(newCount);
+            }}
             style={{ width: '100%' }}
           />
         </div>
@@ -347,13 +1026,26 @@ export function ShapeTestLab() {
           </label>
           <input
             type="range"
-            min="0"
-            max="5"
-            step="0.1"
+            min="0.1"
+            max="2"
+            step="0.01"
             value={pointSize}
-            onChange={(e) => setPointSize(Number(e.target.value))}
+            onChange={(e) => {
+              const newSize = Number(e.target.value);
+              if (DEBUG_MODE) {
+                console.log('📏 Point size changed:', { from: pointSize, to: newSize });
+              }
+              setPointSize(newSize);
+            }}
             style={{ width: '100%' }}
           />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#888', marginTop: '2px' }}>
+            <span>0.1</span>
+            <span>0.5</span>
+            <span>1.0</span>
+            <span>1.5</span>
+            <span>2.0</span>
+          </div>
         </div>
         
         <div style={{ marginBottom: '15px' }}>
@@ -372,39 +1064,162 @@ export function ShapeTestLab() {
         </div>
         
         <div style={{ marginBottom: '15px' }}>
-          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+          <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
             Point Color
           </label>
-          <input
-            type="color"
-            value={pointColor}
-            onChange={(e) => setPointColor(e.target.value)}
-            style={{ width: '100%', height: '30px' }}
-          />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: textColor, fontSize: '12px' }}>Dark</label>
+              <input
+                type="color"
+                value={pointColorTheme.dark}
+                onChange={(e) => setPointColorTheme({ ...pointColorTheme, dark: e.target.value })}
+                style={{ width: '100%', height: '30px' }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: textColor, fontSize: '12px' }}>
+                Light {pointColorTheme.light ? '' : '(auto)'}
+              </label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <input
+                  type="color"
+                  value={pointColorTheme.light || darkToLight(pointColorTheme.dark)}
+                  onChange={(e) => setPointColorTheme({ ...pointColorTheme, light: e.target.value })}
+                  style={{ flex: 1, height: '30px' }}
+                />
+                {pointColorTheme.light && (
+                  <button
+                    onClick={() => setPointColorTheme({ ...pointColorTheme, light: undefined })}
+                    style={{
+                      padding: '0 8px',
+                      background: '#ff4a4a',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                    title="Use automatic light color"
+                  >
+                    Auto
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+            Current: {pointColor}
+          </div>
         </div>
         
         <div style={{ marginBottom: '15px' }}>
           <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+            Point Opacity: {(pointOpacity * 100).toFixed(0)}%
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={pointOpacity}
+            onChange={(e) => setPointOpacity(Number(e.target.value))}
+            style={{ width: '100%' }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
             Edge Color
           </label>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: textColor, fontSize: '12px' }}>Dark</label>
+              <input
+                type="color"
+                value={edgeColorTheme.dark}
+                onChange={(e) => setEdgeColorTheme({ ...edgeColorTheme, dark: e.target.value })}
+                style={{ width: '100%', height: '30px' }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: textColor, fontSize: '12px' }}>
+                Light {edgeColorTheme.light ? '' : '(auto)'}
+              </label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <input
+                  type="color"
+                  value={edgeColorTheme.light || darkToLight(edgeColorTheme.dark)}
+                  onChange={(e) => setEdgeColorTheme({ ...edgeColorTheme, light: e.target.value })}
+                  style={{ flex: 1, height: '30px' }}
+                />
+                {edgeColorTheme.light && (
+                  <button
+                    onClick={() => setEdgeColorTheme({ ...edgeColorTheme, light: undefined })}
+                    style={{
+                      padding: '0 8px',
+                      background: '#ff4a4a',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                    title="Use automatic light color"
+                  >
+                    Auto
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+            Current: {edgeColor}
+          </div>
+        </div>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+            Edge Opacity: {(edgeOpacity * 100).toFixed(0)}%
+          </label>
           <input
-            type="color"
-            value={edgeColor}
-            onChange={(e) => setEdgeColor(e.target.value)}
-            style={{ width: '100%', height: '30px' }}
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={edgeOpacity}
+            onChange={(e) => setEdgeOpacity(Number(e.target.value))}
+            style={{ width: '100%' }}
           />
         </div>
         
         <div style={{ marginBottom: '15px' }}>
           <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-            Background Color
+            Edge Style
           </label>
-          <input
-            type="color"
-            value={backgroundColor}
-            onChange={(e) => setBackgroundColor(e.target.value)}
-            style={{ width: '100%', height: '30px' }}
-          />
+          <select
+            value={edgeStyle}
+            onChange={(e) => {
+              const newStyle = e.target.value as 'solid' | 'dashed' | 'dotted';
+              if (DEBUG_MODE) {
+                console.log('📐 Edge style changed:', { from: edgeStyle, to: newStyle });
+              }
+              setEdgeStyle(newStyle);
+            }}
+            style={{
+              width: '100%',
+              padding: '6px',
+              background: '#333',
+              color: '#fff',
+              border: '1px solid #555',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+          </select>
         </div>
         
         <div style={{ marginBottom: '15px' }}>
@@ -485,30 +1300,52 @@ export function ShapeTestLab() {
         </div>
         
         {brownianMotion && (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ color: '#fff', display: 'block', marginBottom: '4px', fontSize: '14px' }}>
-              Motion Preset
-            </label>
-            <select
-              value={brownianPreset}
-              onChange={(e) => setBrownianPreset(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '6px',
-                background: '#333',
-                color: '#fff',
-                border: '1px solid #555',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
-            >
-              <option value="subtle">Subtle</option>
-              <option value="standard">Standard</option>
-              <option value="energetic">Energetic</option>
-              <option value="smooth">Smooth</option>
-              <option value="chaotic">Chaotic</option>
-            </select>
-          </div>
+          <>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+                Motion Amplitude: {brownianAmplitude.toFixed(2)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.1"
+                value={brownianAmplitude}
+                onChange={(e) => setBrownianAmplitude(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+                Motion Speed: {brownianSpeed.toFixed(3)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="0.05"
+                step="0.001"
+                value={brownianSpeed}
+                onChange={(e) => setBrownianSpeed(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ color: textColor, display: 'block', marginBottom: '4px', fontSize: '14px' }}>
+                Motion Damping: {brownianDamping.toFixed(3)}
+              </label>
+              <input
+                type="range"
+                min="0.9"
+                max="1"
+                step="0.001"
+                value={brownianDamping}
+                onChange={(e) => setBrownianDamping(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </>
         )}
         
         <button
@@ -527,6 +1364,174 @@ export function ShapeTestLab() {
         >
           Regenerate Shape
         </button>
+        
+        {/* Settings Management Section */}
+        <div style={{
+          marginTop: '30px',
+          paddingTop: '20px',
+          borderTop: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
+        }}>
+          <h3 style={{ color: textColor, fontSize: '18px', marginBottom: '15px' }}>
+            Settings Management
+          </h3>
+          
+          {/* Export/Import/Clear Row */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            <button
+              onClick={exportSettings}
+              style={{
+                flex: 1,
+                padding: '8px',
+                background: theme === 'dark' ? '#444' : '#ddd',
+                color: textColor,
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Export
+            </button>
+            <label style={{
+              flex: 1,
+              padding: '8px',
+              background: theme === 'dark' ? '#444' : '#ddd',
+              color: textColor,
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              textAlign: 'center'
+            }}>
+              Import
+              <input
+                type="file"
+                accept=".json"
+                onChange={importSettings}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <button
+              onClick={() => {
+                localStorage.removeItem('shapeTestLabCurrentSettings');
+                window.location.reload();
+              }}
+              style={{
+                flex: 1,
+                padding: '8px',
+                background: '#ff4a4a',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+              title="Reset all settings to defaults"
+            >
+              Reset
+            </button>
+          </div>
+          
+          {/* Save Preset */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ color: textColor, display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+              Save as Preset
+            </label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input
+                type="text"
+                placeholder="Preset name..."
+                id="preset-name-input"
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  background: inputBackground,
+                  color: textColor,
+                  border: `1px solid ${inputBorder}`,
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              />
+              <button
+                onClick={() => {
+                  const input = document.getElementById('preset-name-input') as HTMLInputElement;
+                  if (input?.value) {
+                    savePreset(input.value);
+                    input.value = '';
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#4a9eff',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          
+          {/* Load Preset */}
+          {Object.keys(savedPresets).length > 0 && (
+            <div>
+              <label style={{ color: textColor, display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                Load Preset
+              </label>
+              <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                {Object.keys(savedPresets).map(name => (
+                  <div
+                    key={name}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px',
+                      marginBottom: '4px',
+                      background: theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <span style={{ color: textColor, fontSize: '14px', flex: 1 }}>{name}</span>
+                    <button
+                      onClick={() => loadPreset(name)}
+                      style={{
+                        padding: '4px 12px',
+                        marginLeft: '8px',
+                        background: '#4a9eff',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Load
+                    </button>
+                    <button
+                      onClick={() => deletePreset(name)}
+                      style={{
+                        padding: '4px 12px',
+                        marginLeft: '4px',
+                        background: '#ff4a4a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       
       {/* 3D Viewport */}
@@ -549,18 +1554,24 @@ export function ShapeTestLab() {
             <pointLight position={[10, 10, 10]} intensity={1} />
             <pointLight position={[-10, -10, -10]} intensity={0.5} />
             
-            {/* Shape */}
+            {/* Shape - key includes shape ID and point count to force re-creation only when necessary */}
             <ShapeVisualizer
+              key={`${currentShape.id}-${currentShape.positions.length}-${regenerateKey}`}
               shape={currentShape}
               showEdges={showEdges}
               pointSize={pointSize}
               pointSizeVariation={pointSizeVariation}
               pointColor={pointColor}
+              pointOpacity={pointOpacity}
               edgeColor={edgeColor}
+              edgeOpacity={edgeOpacity}
+              edgeStyle={edgeStyle}
               autoRotate={autoRotate}
               rotationSpeed={rotationSpeed}
               brownianMotion={brownianMotion}
-              brownianPreset={brownianPreset}
+              brownianAmplitude={brownianAmplitude}
+              brownianSpeed={brownianSpeed}
+              brownianDamping={brownianDamping}
             />
             
             {/* Grid */}
@@ -569,10 +1580,10 @@ export function ShapeTestLab() {
                 args={[30, 30]}
                 cellSize={1}
                 cellThickness={0.5}
-                cellColor="#444"
+                cellColor={gridColor}
                 sectionSize={5}
                 sectionThickness={1}
-                sectionColor="#666"
+                sectionColor={gridSectionColor}
                 fadeDistance={50}
                 fadeStrength={1}
                 followCamera={false}

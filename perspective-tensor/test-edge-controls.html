@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edge Controls Test</title>
+</head>
+<body>
+    <h1>Edge Controls Test Checklist</h1>
+    
+    <h2>Visual Controls to Verify:</h2>
+    <ol>
+        <li>
+            <strong>Edge Width Slider</strong>
+            <ul>
+                <li>Range: 0.5 to 3.0</li>
+                <li>Shows current value</li>
+                <li>Has tick marks at 0.5, 1.0, 1.5, 2.0, 2.5, 3.0</li>
+            </ul>
+        </li>
+        
+        <li>
+            <strong>Edge Style Dropdown</strong>
+            <ul>
+                <li>Options: Solid, Dashed, Dotted</li>
+                <li>Changes edge rendering pattern</li>
+                <li>Styled with dark theme (black background, white text)</li>
+            </ul>
+        </li>
+        
+        <li>
+            <strong>Edge Color Picker</strong>
+            <ul>
+                <li>Separate colors for Dark and Light themes</li>
+                <li>Auto button for light theme</li>
+                <li>Shows current color value</li>
+            </ul>
+        </li>
+        
+        <li>
+            <strong>Edge Opacity Slider</strong>
+            <ul>
+                <li>Range: 0% to 100%</li>
+                <li>Shows percentage value</li>
+            </ul>
+        </li>
+        
+        <li>
+            <strong>Show Edges Checkbox</strong>
+            <ul>
+                <li>Toggles edge visibility</li>
+            </ul>
+        </li>
+    </ol>
+    
+    <h2>Persistence Tests:</h2>
+    <ol>
+        <li>Change edge style to "Dashed" → Refresh page → Should remain "Dashed"</li>
+        <li>Set edge width to 2.0 → Switch shapes → Edge width should stay 2.0</li>
+        <li>Change edge color → Switch theme → Color should update appropriately</li>
+        <li>Disable edges → Change shape → Edges should remain hidden</li>
+    </ol>
+    
+    <h2>Visual Tests:</h2>
+    <ol>
+        <li>Solid edges: Continuous lines</li>
+        <li>Dashed edges: Lines with gaps</li>
+        <li>Dotted edges: Small dots with larger gaps</li>
+        <li>Edge opacity affects transparency</li>
+        <li>Edge color changes apply immediately</li>
+    </ol>
+    
+    <p><a href="http://localhost:4321/shape-test" target="_blank">Open Shape Test Page</a></p>
+    
+    <script>
+        // Check localStorage for saved settings
+        const settings = localStorage.getItem('shapeTestLabAllSettings');
+        if (settings) {
+            const parsed = JSON.parse(settings);
+            console.log('Current saved settings:', parsed);
+            console.log('Edge Style:', parsed.globalSettings.edgeStyle);
+            console.log('Edge Width:', parsed.globalSettings.edgeWidth);
+        }
+    </script>
+</body>
+</html>

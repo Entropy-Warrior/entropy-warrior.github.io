@@ -3,7 +3,7 @@
  * Implements simplified skeletonization for 2D shapes
  */
 
-import { Point2D } from './svgPathParser';
+import type { Point2D } from './svgPathParser';
 
 export interface CenterlineResult {
   centerline: Point2D[];
