@@ -1,0 +1,21 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { ShapeTestLab } from '../react/components/ShapeTestLab.tsx';
+---
+
+<BaseLayout title="Shape Testing Lab">
+  <div id="shape-test-container">
+    <ShapeTestLab client:only="react" />
+  </div>
+</BaseLayout>
+
+<style>
+  #shape-test-container {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10;
+  }
+</style>

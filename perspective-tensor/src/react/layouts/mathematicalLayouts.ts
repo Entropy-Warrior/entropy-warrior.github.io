@@ -2,7 +2,7 @@ import type { Vec3 } from '../utils/mathUtils';
 import type { Layout } from '../utils/layoutUtils';
 import { centerPositionsAndGetBounds, createSimpleBrightness } from '../utils/layoutUtils';
 
-const N = 729; // 9^3 points
+const DEFAULT_N = 1000; // Default point count (legacy)
 const TRANSFORM = { targetSize: 20, rot: { x: -0.3, y: 0.4 } };
 // ═══════════════════════════════════════════════════════════════
 // Unified transformation: rotate → scale to fit viewport
@@ -43,7 +43,8 @@ const universalBrownian = (localSize: number, baseAmplitude: number = 0.1) => {
 // ψ(i) = 2.5·(i÷[81,9,1] mod 9 - 4) + ε
 // Maps linear index i ∈ [0,729) to 3D grid coordinates
 // ═══════════════════════════════════════════════════════════════
-export const generateMathTensorLayout = (): Layout => {
+export const generateMathTensorLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.15);
   
   // Random tensor parameters for variety
@@ -74,7 +75,8 @@ export const generateMathTensorLayout = (): Layout => {
 // φ(i,c) = R_c·S(i/n_c)·e^(iφ) + C_c + ε
 // Centers randomly distributed in 3D space for variety
 // ═══════════════════════════════════════════════════════════════
-export const generateMathGraphLayout = (): Layout => {
+export const generateMathGraphLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const C = 7, ε = noise(0.3);
   
   // Generate all positions with cluster assignment
@@ -175,46 +177,46 @@ export const generateMathGraphLayout = (): Layout => {
 // DISK GALAXY: Flat spiral galaxy layout with random parameters
 // f(t) = √t·R·e^(iωt) + ε·z·k̂
 // ═══════════════════════════════════════════════════════════════
-export const generateMathDiskGalaxyLayout = (): Layout => {
+export const generateMathDiskGalaxyLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const spiralTightness = 8 + Math.random() * 8; // Random between 8-16 rotations
   const gapGradient = 0.3 + Math.random() * 0.5; // Random gap gradient 0.3-0.8
   
   console.log('🌌 GALAXY REGENERATED:', { spiralTightness: spiralTightness.toFixed(1), gapGradient: gapGradient.toFixed(2) });
   
-  const positions = Array.from({length: N}, (_, i) => {
-    // Galaxy density: pack more points in center, linear spread outward
-    const linearT = i / N;
+  // Generate galaxy with natural exponential distribution (no artificial bounds)
+  const positions: Vec3[] = [];
+  const scaleLength = 3.0; // Galaxy disk scale length R_D
+  const maxReasonableU = 0.995; // Avoid ln(0) but let galaxy extend naturally
+  
+  for (let i = 0; i < N; i++) {
+    // Make galaxy size independent of point count
+    // Map points uniformly across the exponential distribution
+    const linearT = i / (N - 1); // Use N-1 to include endpoints properly
     
-    // Galaxy density: exponential profile I(R) = I₀ * e^(-R/R_D)
-    // For point distribution, we need inverse: R = -R_D * ln(1 - u) where u ∈ [0,1)
-    const scaleLength = 3.0; // Galaxy disk scale length R_D
-    const maxRadius = 12; // Maximum galaxy radius
-    
-    // Exponential disk distribution (avoid u=1 to prevent ln(0))
-    const u = Math.min(linearT, 0.999);
-    const r = -scaleLength * Math.log(1 - u); // Exponential radial distribution
-    const clampedR = Math.min(r, maxRadius); // Clamp to max radius
-    const t = clampedR / maxRadius; // Normalize for other calculations
+    // Natural exponential distribution without artificial cutoff
+    const u = linearT * maxReasonableU; // Scale to avoid mathematical singularity only
+    const r = -scaleLength * Math.log(1 - u); // Pure exponential radial distribution
+    const t = Math.min(r / 20, 1); // Normalize for calculations (20 = reasonable max for spiral calcs)
     
     // Spiral: continuous in one direction, tighter at center
-    // Total angle accumulates continuously from center to edge
     const spiralRate = spiralTightness / (1 + t * 2); // Decreases with radius (looser at edges)
     const θ = spiralTightness * Math.PI * t; // Simple continuous spiral
     
-         // Flat galaxy disk with more noise in the center
-     const baseHeight = 0.3 * (1 - t) * Math.cos(θ); // Minimal height, decreases outward
-     const centerNoise = (Math.random() - 0.5) * 1.2 * (1 - t * 0.7); // More noise in center, less at edges
-     const z = baseHeight + centerNoise;
+    // Flat galaxy disk with more noise in the center
+    const baseHeight = 0.3 * (1 - t) * Math.cos(θ); // Minimal height, decreases outward
+    const centerNoise = (Math.random() - 0.5) * 1.2 * (1 - t * 0.7); // More noise in center, less at edges
+    const z = baseHeight + centerNoise;
     
     // Size-dependent Brownian motion: smaller radius = more jiggling
-    const localSize = clampedR; // Use radius as size measure
+    const localSize = r; // Use actual radius as size measure
     
-    return [
-      clampedR * Math.cos(θ) + universalBrownian(localSize),
-      clampedR * Math.sin(θ) + universalBrownian(localSize),
+    positions.push([
+      r * Math.cos(θ) + universalBrownian(localSize),
+      r * Math.sin(θ) + universalBrownian(localSize),
       z + universalBrownian(localSize)
-    ] as Vec3;
-  });
+    ] as Vec3);
+  }
 
   // Connect consecutive points along the spiral only
   const edges: [number, number][] = [];
@@ -229,12 +231,12 @@ export const generateMathDiskGalaxyLayout = (): Layout => {
 // MOBIUS RIBBON: True Möbius strip with smooth continuous twist
 // f(u,v) = C(u) + v·R(u/2)·[n₁(u), n₂(u), n₃]
 // ═══════════════════════════════════════════════════════════════
-export const generateMathMobiusRibbonLayout = (): Layout => {
+export const generateMathMobiusRibbonLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.1);
   
   // Smooth Möbius parameters for elegant appearance
   const strips = 24 + Math.floor(Math.random() * 5); // Strips across width (24-28) - fewer for smoothness
-  const loops = Math.floor(N / strips); // Points along the strip
   const width = 3.0 + Math.random() * 0.8; // Ribbon width (3.0-3.8) - more consistent
   const verticalWave = 0.2 + Math.random() * 0.3; // Very subtle wave (0.2-0.5) - much smoother
   const waveFreq = 1; // Single smooth wave - no random frequency
@@ -242,12 +244,16 @@ export const generateMathMobiusRibbonLayout = (): Layout => {
   console.log('🎀 MOBIUS REGENERATED:', { strips, width: width.toFixed(2), verticalWave: verticalWave.toFixed(2), waveFreq });
   
   const positions = Array.from({length: N}, (_, i) => {
-    const strip = i % strips;
-    const loop = Math.floor(i / strips);
+    // Map points uniformly around the Möbius strip regardless of N
+    const t = i / (N - 1); // Uniform parameter [0,1] independent of N
+    
+    // Separate into strip (across width) and loop (along length) components
+    const stripIndex = i % strips;
+    const loopProgress = Math.floor(i / strips) / Math.floor((N - 1) / strips);
     
     // Parameters: u along strip [0,2π], v across width [-1,1]
-    const u = (loop / loops) * 2 * Math.PI;
-    const v = (strip / (strips - 1) - 0.5) * 2;
+    const u = loopProgress * 2 * Math.PI; // Always complete full loop
+    const v = (stripIndex / (strips - 1) - 0.5) * 2;
     
     // Center curve - a circle in 3D space with random wave
     const R = 10;
@@ -278,6 +284,7 @@ export const generateMathMobiusRibbonLayout = (): Layout => {
   });
 
   const edges: [number, number][] = [];
+  const effectiveLoops = Math.floor((N - 1) / strips);
   
   for (let i = 0; i < N; i++) {
     const strip = i % strips;
@@ -286,14 +293,16 @@ export const generateMathMobiusRibbonLayout = (): Layout => {
     // Along width (connect strips)
     if (strip < strips - 1) edges.push([i, i + 1]);
     
-    // Along length (connect loops)
-    if (loop < loops - 1) {
-      edges.push([i, i + strips]);
-    } else {
-      // Connect last loop to first loop with twist (Möbius closure)
-      const targetStrip = strips - 1 - strip; // Flip across width for twist
-      const targetIdx = targetStrip;
-      if (targetIdx < N) edges.push([i, targetIdx]);
+    // Along length (connect loops) - ensure proper Möbius topology
+    if (loop < effectiveLoops) {
+      const nextLoopIdx = i + strips;
+      if (nextLoopIdx < N) {
+        edges.push([i, nextLoopIdx]);
+      } else {
+        // Möbius closure: connect to beginning with twist
+        const targetStrip = strips - 1 - strip; // Flip across width for twist
+        if (targetStrip < N) edges.push([i, targetStrip]);
+      }
     }
   }
   
@@ -304,7 +313,8 @@ export const generateMathMobiusRibbonLayout = (): Layout => {
 // DOUBLE HELIX: Classic DNA double helix structure
 // f(t,s) = [R·cos(ωt + sπ), R·sin(ωt + sπ), h·t]
 // ═══════════════════════════════════════════════════════════════
-export const generateMathDoubleHelixLayout = (): Layout => {
+export const generateMathDoubleHelixLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   
   // Random helix parameters for variety with spacing variation
   const baseRadius = 4 + Math.random() * 4; // Base helix radius (4-8)
@@ -374,7 +384,8 @@ export const generateMathDoubleHelixLayout = (): Layout => {
 // TORUS KNOT: Elegant curve wrapping around a torus (p,q)-knot
 // K(t) = [(R + r·cos(qt))·cos(pt), (R + r·cos(qt))·sin(pt), r·sin(qt)]
 // ═══════════════════════════════════════════════════════════════
-export const generateMathTorusKnotLayout = (): Layout => {
+export const generateMathTorusKnotLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.1);
   
   // Choose from interesting torus knot configurations
@@ -468,7 +479,8 @@ export const generateMathTorusKnotLayout = (): Layout => {
 // S(θ,φ) = r(θ,φ)·[sin(θ)cos(φ), sin(θ)sin(φ), cos(θ)]
 // where r(θ,φ) = R·(1 + A·Y_lm(θ,φ))
 // ═══════════════════════════════════════════════════════════════
-export const generateMathSphericalLayout = (): Layout => {
+export const generateMathSphericalLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.15);
   
   // Random spherical harmonic parameters
@@ -539,7 +551,8 @@ export const generateMathSphericalLayout = (): Layout => {
 // 16 vertices at (±1, ±1, ±1, ±1), 32 edges
 // Deterministic perspective projection for perfect "cube within cube"
 // ═══════════════════════════════════════════════════════════════
-export const generateMathHypercubeLayout = (): Layout => {
+export const generateMathHypercubeLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.02); // Very small noise for subtle variation
   
   // Generate the 16 vertices of the tesseract at (±1, ±1, ±1, ±1)
@@ -686,7 +699,8 @@ const lerpVec3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
 // H(u,v) = [r(v)·A(v,u)·cos(u), r(v)·A(v,u)·sin(u), v·h]
 // where r(v) and A(v,u) both vary to create asymmetric ends
 // ═══════════════════════════════════════════════════════════════
-export const generateMathWormholeLayout = (): Layout => {
+export const generateMathWormholeLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.15);
   
   // Balanced asymmetric parameters - both ends expand outward
@@ -758,7 +772,8 @@ export const generateMathWormholeLayout = (): Layout => {
 // Non-orientable surface: f(u,v) = [x(u,v), y(u,v), z(u,v)]
 // Inside becomes outside - famous topological shape
 // ═══════════════════════════════════════════════════════════════
-export const generateMathKleinBottleLayout = (): Layout => {
+export const generateMathKleinBottleLayout = (customN?: number): Layout => {
+  const N = customN ?? DEFAULT_N;
   const ε = noise(0.1);
   
   // Klein bottle parameters for variety
