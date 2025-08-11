@@ -1,0 +1,795 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  lerpVec3,
+  type Vec3,
+  slerpVec3,
+  createRotationMatrix,
+  multiplyMatrices,
+  applyMatrixToVector,
+  getPerpendicularAxis,
+  easeInOutQuart,
+  randomNormal,
+  type Matrix3x3,
+  createBrownianOffsets,
+  updateBrownianMotion,
+  setupCanvas,
+  getRenderColors,
+  type BrownianOffsets,
+  type Layout,
+  type Bounds
+} from '../animation/utils';
+import { LAYOUT_STATES, LAYOUT_GENERATORS, type LayoutState } from '../layouts';
+import { LAYOUT_EQUATIONS } from '../layouts/layoutEquations';
+import { ANIMATION_CONFIG as CFG } from '../config';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
+
+// ═══════════════════════════════════════════════════════════════
+// CORE TYPES & CONFIGURATION
+// ═══════════════════════════════════════════════════════════════
+
+const N = CFG.particles.count; // Use count from config
+
+// Use imported types
+type State = LayoutState;
+
+interface Machine {
+  state: State;
+  next: State;
+  t: number;
+  phase: 'pause' | 'morph';
+  elapsed: number;
+  startTime: number;
+}
+
+interface Line {
+  a: number;
+  b: number;
+  strength: number;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STREAMLINED ANIMATION ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+
+const getLineAlpha = (line: Line, distance: number, isDark: boolean): number => {
+  const base = isDark ? CFG.line.baseAlpha.dark : CFG.line.baseAlpha.light;
+  const boost = isDark ? CFG.line.distanceBoost.dark : CFG.line.distanceBoost.light;
+  const max = isDark ? CFG.line.maxAlpha.dark : CFG.line.maxAlpha.light;
+  
+  const distFactor = Math.min(distance / CFG.line.distanceThreshold, 1.0);
+  return Math.min((base + distFactor * boost) * line.strength, max);
+};
+
+// Smart viewport fitting that maximizes use of available space
+function calculateOptimalScale(bounds: Bounds, viewportWidth: number, viewportHeight: number, padding: number = CFG.viewport.padding): number {
+  // Calculate the actual bounding box dimensions
+  const boundsWidth = bounds.maxX - bounds.minX;
+  const boundsHeight = bounds.maxY - bounds.minY;
+  
+  // For 2D projection, assume width is the effective dimension
+  // Add minimal margin since layouts are maximized
+  const effectiveWidth = boundsWidth * CFG.viewport.boundsMargin; // Just 5% margin for safety
+  const effectiveHeight = boundsHeight * CFG.viewport.boundsMargin;
+  
+  // Available space after padding
+  const availableWidth = viewportWidth - (2 * padding);
+  const availableHeight = viewportHeight - (2 * padding);
+  
+  // Calculate scale factors for each dimension
+  const scaleX = availableWidth / effectiveWidth;
+  const scaleY = availableHeight / effectiveHeight;
+  
+  // Use the minimum scale to ensure everything fits
+  const scale = Math.min(scaleX, scaleY);
+  
+  return Math.max(scale, CFG.viewport.minScale); // Allow scaling down to minimum for small windows
+}
+
+class StreamlinedAnimation {
+  private layouts: { [key in State]: Layout } = {} as any;
+  private stateBounds: { [key in State]: Bounds } = {} as any;
+  private unifiedScale: number = 1; // Single scale for all states
+  private lines: Line[] = [];
+  private machine: Machine;
+  private brownianOffsets: BrownianOffsets;
+  private particleMapping: number[] = []; // Maps particle index to position index in current state
+  private targetMapping: number[] = []; // Maps particle index to position index in target state
+  private particleSizes: number[] = []; // Random sizes for each particle
+  // Rotation state - simplified with a single rotation config object
+  private rotation = {
+    matrix: [[1,0,0],[0,1,0],[0,0,1]] as Matrix3x3,
+    current: { axis: [0, 1, 0] as Vec3, speed: 1 },
+    target: { axis: [0, 1, 0] as Vec3, speed: 1 },
+    future: { axis: [0, 1, 0] as Vec3, speed: 1 },
+    transitionProgress: 1,
+    cycleCount: 0
+  };
+  private currentStateIndex: number = 0; // Track position in deterministic sequence
+  private hasRegeneratedThisPause: boolean = false; // Track if we've regenerated during current pause
+
+  constructor() {
+    console.log('🚀 ANIMATION ENGINE INITIALIZED');
+    // Generate all layouts with random parameters
+    this.generateLayouts();
+    
+    // Initialize per-particle brownian motion offsets - always active
+    this.brownianOffsets = createBrownianOffsets(N);
+    
+    // Initialize particle mapping - initially particles are at their index positions
+    this.particleMapping = Array.from({ length: N }, (_, i) => i);
+    this.targetMapping = Array.from({ length: N }, (_, i) => i);
+    
+    // Initialize particle sizes with normal distribution around 1.5
+    this.particleSizes = this.generateParticleSizes();
+    
+    // Initialize with deterministic sequence
+    const firstState = LAYOUT_STATES[0]; // Start with first state
+    const secondState = LAYOUT_STATES[1]; // Next is second state
+    this.currentStateIndex = 0;
+    
+    this.machine = {
+      state: firstState,
+      next: secondState,
+      t: 0,
+      phase: 'pause',
+      elapsed: 0,
+      startTime: 0
+    };
+    
+    // Initialize all lines for the initial tensor state to be immediately visible
+    this.initializeAllLines();
+  }
+
+  // Use imported layout generators
+  private readonly layoutGenerators = LAYOUT_GENERATORS;
+
+  private generateLayouts(): void {
+    console.log('📐 GENERATING ALL LAYOUTS');
+    // Generate all layouts using the mapping
+    for (const state of LAYOUT_STATES) {
+      console.log(`  - Generating ${state}...`);
+      this.layouts[state] = this.layoutGenerators[state]();
+      this.stateBounds[state] = this.layouts[state].bounds;
+      console.log(`    ✓ ${state}: ${this.layouts[state].positions.length} positions, ${this.layouts[state].edges.length} edges`);
+    }
+  }
+  
+  private generateParticleSizes(): number[] {
+    // Generate normally distributed particle sizes
+    const sizes: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const size = Math.max(
+        CFG.particles.size.min, 
+        Math.min(
+          CFG.particles.size.max, 
+          randomNormal(CFG.particles.size.mean, CFG.particles.size.stddev)
+        )
+      );
+      sizes.push(size);
+    }
+    return sizes;
+  }
+  
+  private getNextDeterministicState(): State {
+    // Cycle through states in order
+    this.currentStateIndex = (this.currentStateIndex + 1) % LAYOUT_STATES.length;
+    return LAYOUT_STATES[this.currentStateIndex];
+  }
+  
+  updateUnifiedScale(width: number, height: number): void {
+    // Calculate a single scale that works for all states (use the most conservative)
+    const scales = LAYOUT_STATES
+      .map(s => calculateOptimalScale(this.stateBounds[s], width, height, CFG.viewport.padding));
+    this.unifiedScale = Math.min(...scales);
+  }
+
+  // Public methods to get animation state
+  getCurrentState(): State {
+    return this.machine.state;
+  }
+
+  getNextState(): State {
+    return this.machine.next;
+  }
+
+  getPhase(): 'pause' | 'morph' {
+    return this.machine.phase;
+  }
+
+  getMorphProgress(): number {
+    return this.machine.t;
+  }
+
+  getPauseElapsed(): number {
+    return this.machine.phase === 'pause' ? this.machine.elapsed : 0;
+  }
+
+  private initializeAllLines(): void {
+    this.lines = this.layouts[this.machine.state].edges.map(([a, b]) => 
+      ({ a, b, strength: 1.0 })
+    );
+  }
+
+  private generateRandomMapping(): void {
+    // Completely random shuffle of particles to new positions
+    const availablePositions = Array.from({ length: N }, (_, i) => i);
+    
+    // Shuffle available positions randomly
+    for (let i = availablePositions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availablePositions[i], availablePositions[j]] = [availablePositions[j], availablePositions[i]];
+    }
+    
+    // Assign shuffled positions to particles
+    this.targetMapping = availablePositions;
+  }
+
+  private updateRotation(): void {
+    // Smoothly transition rotation parameters over 3 complete cycles
+    if (this.rotation.transitionProgress < 1) {
+      const cyclesForTransition = 3;
+      const totalCycleDuration = CFG.timing.pauseMs + CFG.timing.morphMs;
+      const currentCycleTime = this.machine.phase === 'pause' 
+        ? this.machine.elapsed 
+        : CFG.timing.pauseMs + this.machine.elapsed;
+      
+      const totalProgress = (this.rotation.cycleCount * totalCycleDuration + currentCycleTime) / 
+                          (cyclesForTransition * totalCycleDuration);
+      this.rotation.transitionProgress = Math.min(1, totalProgress);
+      const t = easeInOutQuart(this.rotation.transitionProgress);
+      
+      // Slerp between current and target axis
+      this.rotation.current.axis = slerpVec3(
+        this.rotation.current.axis, 
+        this.rotation.target.axis, 
+        t
+      );
+      
+      // Interpolate speed
+      this.rotation.current.speed = this.rotation.current.speed * (1 - t) + 
+                                   this.rotation.target.speed * t;
+    }
+
+    // Apply incremental rotation
+    const baseRotationSpeed = CFG.rotation.baseSpeed;
+    const deltaAngle = this.rotation.current.speed * baseRotationSpeed * CFG.rotation.deltaTime;
+    
+    if (Math.abs(deltaAngle) > 0.0001) {
+      this.rotation.matrix = multiplyMatrices(
+        this.rotation.matrix,
+        createRotationMatrix(this.rotation.current.axis, deltaAngle)
+      );
+    }
+  }
+
+  update(time: number): void {
+    if (this.machine.startTime === 0) {
+      this.machine.startTime = time;
+    }
+
+    this.machine.elapsed = time - this.machine.startTime;
+
+    // ALWAYS update per-particle brownian motion with size-dependent jitter
+    updateBrownianMotion(this.brownianOffsets, CFG.brownian, this.particleSizes);
+    
+    // Debug: Log Brownian offsets every second to verify they're changing
+    if (Math.floor(time / 1000) !== Math.floor((time - 16.67) / 1000)) {
+      const sample = this.brownianOffsets.x.slice(0, 5);
+      const variance = sample.reduce((acc, val) => acc + Math.abs(val), 0) / sample.length;
+      console.log('🔍 BROWNIAN CHECK:', {
+        time: Math.floor(time / 1000),
+        firstFive_x: sample.map(v => v.toFixed(3)),
+        avgMovement: variance.toFixed(3),
+        isMoving: variance > 0.001 ? '✅ YES' : '❌ NO'
+      });
+    }
+
+    // Update rotation
+    this.updateRotation();
+    
+    // Update state machine
+    if (this.machine.phase === 'pause') {
+      // Regenerate layouts during the middle of pause when shape is stable
+      const pauseProgress = this.machine.elapsed / CFG.timing.pauseMs;
+      
+      // Regenerate the next state layout at 75% through pause (1.5s into 2s pause)
+      // This gives current shape time to settle before we regenerate the upcoming one
+      if (pauseProgress >= 0.75 && !this.hasRegeneratedThisPause) {
+        console.log('🔄 REGENERATING UPCOMING LAYOUT:', this.machine.next, {
+          pauseProgress,
+          elapsed: this.machine.elapsed,
+          hasRegenerated: this.hasRegeneratedThisPause
+        });
+        const oldPositions = this.layouts[this.machine.next].positions.slice(0, 3);
+        this.layouts[this.machine.next] = this.layoutGenerators[this.machine.next]();
+        this.stateBounds[this.machine.next] = this.layouts[this.machine.next].bounds;
+        const newPositions = this.layouts[this.machine.next].positions.slice(0, 3);
+        console.log('✅ REGENERATION COMPLETE:', {
+          state: this.machine.next,
+          oldSample: oldPositions.map(p => p.map(v => v.toFixed(2))),
+          newSample: newPositions.map(p => p.map(v => v.toFixed(2))),
+          changed: JSON.stringify(oldPositions) !== JSON.stringify(newPositions)
+        });
+        this.hasRegeneratedThisPause = true;
+      }
+      
+      if (this.machine.elapsed >= CFG.timing.pauseMs) {
+        // Start morphing - just generate random mapping, layouts already regenerated
+        this.generateRandomMapping();
+        
+        this.machine.phase = 'morph';
+        this.machine.t = 0;
+        this.machine.startTime = time;
+        this.machine.elapsed = 0;
+      }
+    } else { // morph
+      this.machine.t = Math.min(this.machine.elapsed / CFG.timing.morphMs, 1);
+      
+      if (this.machine.t === 1) {
+        // Transition complete - update particle mapping
+        this.particleMapping = [...this.targetMapping];
+        
+        // Update state
+        this.machine.state = this.machine.next;
+        
+        // Get next state in deterministic sequence (no regeneration yet)
+        this.machine.next = this.getNextDeterministicState();
+        
+        // Update rotation cycles
+        this.updateRotationCycle();
+        
+        // State already updated above, just reset phase
+        this.machine.phase = 'pause';
+        this.machine.startTime = time;
+        this.machine.elapsed = 0;
+        this.hasRegeneratedThisPause = false; // Reset regeneration flag for new pause
+      }
+    }
+
+    this.updateLines();
+  }
+
+  private updateRotationCycle(): void {
+    this.rotation.cycleCount++;
+    
+    // Every 3 cycles, start a new rotation transition
+    if (this.rotation.cycleCount >= 3) {
+      // Shift future to target
+      this.rotation.target = { ...this.rotation.future };
+      
+      // Generate new future rotation
+      this.rotation.future = this.generateNewRotation(this.rotation.future.axis);
+      
+      // Reset counters
+      this.rotation.cycleCount = 0;
+      this.rotation.transitionProgress = 0;
+    }
+  }
+
+  private generateNewRotation(currentAxis: Vec3): { axis: Vec3, speed: number } {
+    // Generate perpendicular axis for rotation
+    const perpAxis = getPerpendicularAxis(currentAxis);
+    
+    // Random perturbation angle (45-135 degrees)
+    const perturbAngle = Math.PI / 4 + Math.random() * Math.PI / 2;
+    
+    // Rotate current axis around perpendicular by perturbAngle
+    const rotMatrix = createRotationMatrix(perpAxis, perturbAngle);
+    const newAxis = applyMatrixToVector(rotMatrix, currentAxis); // Apply rotation to axis
+    
+    // Small speed variation (0.9x to 1.1x)
+    const speed = CFG.rotation.speedMin + Math.random() * CFG.rotation.speedVariation;
+    
+    return { axis: newAxis, speed };
+  }
+
+  private updateLines(): void {
+    const isMorphing = this.machine.phase === 'morph';
+    
+    if (isMorphing) {
+      const t = this.machine.t;
+      
+      // Simple fade out and fade in
+      const fadeOut = Math.max(0, 1 - t * 2); // Fade out in first 50%
+      const fadeIn = Math.max(0, (t - 0.5) * 2); // Fade in in last 50%
+      
+      // During morph, fade out current lines and fade in target lines
+      const currentEdges = this.layouts[this.machine.state].edges;
+      const targetEdges = this.layouts[this.machine.next].edges;
+      
+      // Combine fading lines
+      this.lines = [
+        ...(fadeOut > 0 ? currentEdges.map(([a, b]) => ({ a, b, strength: fadeOut })) : []),
+        ...(fadeIn > 0 ? targetEdges.map(([a, b]) => ({ a, b, strength: fadeIn })) : [])
+      ];
+    } else {
+      // Steady state: show current layout lines at full strength
+      const currentEdges = this.layouts[this.machine.state].edges;
+      
+      // Only rebuild if needed (line count mismatch)
+      if (this.lines.length !== currentEdges.length) {
+        this.lines = currentEdges.map(([a, b]) => ({ a, b, strength: 1.0 }));
+      } else {
+        this.lines.forEach(line => line.strength = 1.0);
+      }
+    }
+  }
+
+
+  render(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+    const colors = getRenderColors();
+    
+    // Calculate current bounds and scaling
+    const currentLayout = this.layouts[this.machine.state];
+    const targetLayout = this.layouts[this.machine.next];
+    
+    // All states use the same scaling (1.0) - size differences come from intrinsic layout
+    const widthScale = 1.0;
+    const heightScale = 1.0;
+    
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const modelCenterX = 0;  // Model is pre-centered at origin
+    const modelCenterY = 0;  // Model is pre-centered at origin
+
+    const isMorphing = this.machine.phase === 'morph';
+    const easedT = isMorphing ? easeInOutQuart(this.machine.t) : 0;
+    
+    // Use the unified scale for all states (no snapping)
+    const scale = this.unifiedScale * CFG.viewport.scaleMultiplier;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Calculate particle positions based on mapping
+    const particlePositions: Vec3[] = new Array(N);
+    
+    for (let particleIdx = 0; particleIdx < N; particleIdx++) {
+      let pos: Vec3;
+      if (isMorphing) {
+        // During morph, interpolate from current to target position
+        const currentPosIdx = this.particleMapping[particleIdx];
+        const targetPosIdx = this.targetMapping[particleIdx];
+        const currentPos = currentLayout.positions[currentPosIdx];
+        const targetPos = targetLayout.positions[targetPosIdx];
+        pos = lerpVec3(currentPos, targetPos, easedT);
+      } else {
+        // In steady state, use current mapping
+        const posIdx = this.particleMapping[particleIdx];
+        pos = currentLayout.positions[posIdx];
+      }
+      
+      // Apply accumulated rotation matrix
+      particlePositions[particleIdx] = applyMatrixToVector(this.rotation.matrix, pos);
+    }
+
+    // Draw lines connecting the actual particles (with brownian motion)
+    
+    this.lines.forEach(line => {
+      // Skip rendering lines that are essentially invisible
+      if (line.strength < 0.01) return;
+      
+      // Find which particles are at positions line.a and line.b
+      let particleA = -1;
+      let particleB = -1;
+      
+      // During morph or steady state, find particles at the line endpoints
+      if (isMorphing) {
+        // During first half of morph, use current mapping; second half use target
+        const mapping = this.machine.t < CFG.line.fadeTransitionPoint ? this.particleMapping : this.targetMapping;
+        for (let i = 0; i < N; i++) {
+          if (mapping[i] === line.a) particleA = i;
+          if (mapping[i] === line.b) particleB = i;
+          if (particleA >= 0 && particleB >= 0) break;
+        }
+      } else {
+        // In steady state, use current mapping
+        for (let i = 0; i < N; i++) {
+          if (this.particleMapping[i] === line.a) particleA = i;
+          if (this.particleMapping[i] === line.b) particleB = i;
+          if (particleA >= 0 && particleB >= 0) break;
+        }
+      }
+      
+      // If we found both particles, draw the line
+      if (particleA >= 0 && particleB >= 0) {
+        const posA = particlePositions[particleA];
+        const posB = particlePositions[particleB];
+        
+        // Calculate distance for visibility
+        const dx = posA[0] - posB[0];
+        const dy = posA[1] - posB[1];
+        const dz = posA[2] - posB[2];
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        // Lines connect particles with their individual random brownian offsets
+        const x1 = centerX + (posA[0] + this.brownianOffsets.x[particleA] - modelCenterX) * scale * widthScale;
+        const y1 = centerY + (posA[1] + this.brownianOffsets.y[particleA] - modelCenterY) * scale * heightScale;
+        const x2 = centerX + (posB[0] + this.brownianOffsets.x[particleB] - modelCenterX) * scale * widthScale;
+        const y2 = centerY + (posB[1] + this.brownianOffsets.y[particleB] - modelCenterY) * scale * heightScale;
+        
+        // Simple thin transparent lines with distance-based alpha
+        ctx.strokeStyle = colors.lineColor;
+        ctx.globalAlpha = getLineAlpha(line, distance, colors.isDark);
+        ctx.lineWidth = CFG.line.thickness;
+        
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    });
+
+    // Draw particles with continuous brownian motion and random sizes
+    ctx.fillStyle = colors.nodeColor;
+    ctx.globalAlpha = 1.0;
+    
+    for (let particleIdx = 0; particleIdx < N; particleIdx++) {
+      const pos = particlePositions[particleIdx];
+      
+      // Per-particle random brownian motion with individual offsets
+      const x = centerX + (pos[0] + this.brownianOffsets.x[particleIdx] - modelCenterX) * scale * widthScale;
+      const y = centerY + (pos[1] + this.brownianOffsets.y[particleIdx] - modelCenterY) * scale * heightScale;
+      
+      // Use the random size for this particle
+      const radius = this.particleSizes[particleIdx];
+      
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2); 
+      ctx.fill();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REACT COMPONENT
+// ═══════════════════════════════════════════════════════════════
+
+export default function StreamlinedAnimationCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [currentEquation, setCurrentEquation] = useState<string>('');
+  const [equationHtml, setEquationHtml] = useState<string>('');
+  const [equationOpacity, setEquationOpacity] = useState<number>(0);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const animationRef = useRef<StreamlinedAnimation | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let destroyed = false;
+    let width = 0;
+    let height = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, CFG.viewport.maxDevicePixelRatio);
+
+    const animation = new StreamlinedAnimation();
+    animationRef.current = animation;
+    let rafId = 0;
+
+    // Set initial theme state (check if we're in browser)
+    if (typeof document !== 'undefined') {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    }
+
+    // Initialize first equation
+    const initialState = animation.getCurrentState();
+    const initialEquation = LAYOUT_EQUATIONS[initialState];
+    setCurrentEquation(initialEquation);
+    try {
+      const html = katex.renderToString(initialEquation, {
+        throwOnError: false,
+        displayMode: true
+      });
+      setEquationHtml(html);
+    } catch (e) {
+      console.error('KaTeX render error:', e);
+      setEquationHtml(initialEquation);
+    }
+
+    const getSizingElement = (): HTMLElement | null => {
+      let el: HTMLElement | null = canvas.parentElement as HTMLElement | null;
+      while (el && el.clientWidth === 0) el = el.parentElement as HTMLElement | null;
+      return el;
+    };
+
+    const resize = () => {
+      const sizingEl = getSizingElement();
+      const parentWidth = sizingEl?.clientWidth || 0;
+      if (parentWidth === 0) return; // Don't resize if parent has no width
+      
+      // Canvas dimensions responsive to both width and available height
+      width = parentWidth;
+      
+      // Calculate height based on viewport, leaving room for header, footer, and text
+      const viewportHeight = window.innerHeight;
+      // Reserve less space to give the plot more room at the top
+      const reservedHeight = CFG.viewport.reservedHeight;
+      const maxCanvasHeight = Math.max(viewportHeight - reservedHeight, CFG.viewport.minHeight);
+      
+      // Use the smaller of: aspect-ratio-based height or max available height
+      const aspectHeight = Math.round(parentWidth * CFG.viewport.aspectRatio);
+      height = Math.min(aspectHeight, maxCanvasHeight);
+      
+      // Update the unified scale whenever canvas resizes
+      animation.updateUnifiedScale(width, height);
+      
+      setupCanvas(canvas, { width, height, dpr, padding: CFG.viewport.padding });
+    };
+    
+    // Listen for theme changes
+    const themeObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          // Theme changed, update state and re-render
+          if (typeof document !== 'undefined') {
+            const isDark = document.documentElement.classList.contains('dark');
+            setIsDarkMode(isDark);
+            if (!destroyed && animation) {
+              animation.render(ctx, width, height);
+            }
+          }
+        }
+      }
+    });
+    
+    // Observe changes to the html element's class (where dark mode class is toggled)
+    if (typeof document !== 'undefined') {
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class']
+      });
+    }
+
+    const animate = (time: number) => {
+      if (destroyed) return;
+
+      animation.update(time);
+      animation.render(ctx, width, height);
+
+      // Update equation display - continuous opacity across entire cycle
+      const state = animation.getCurrentState();
+      const nextState = animation.getNextState();
+      const phase = animation.getPhase();
+      const morphProgress = animation.getMorphProgress(); // 0 to 1 during morph
+      const pauseElapsed = animation.getPauseElapsed();
+      
+      // Total cycle: pause (2s) + morph (6s) = 8s
+      // We want: 
+      // - Fully solid (1.0) at middle of pause
+      // - Fully transparent (0.0) at middle of morph (morphProgress = 0.5)
+      
+      let equationToShow: State;
+      let targetOpacity: number;
+      
+      if (phase === 'pause') {
+        // During pause: fade in to peak at middle, then fade out
+        equationToShow = state;
+        const pauseDuration = CFG.timing.pauseMs; // 2000ms
+        const pauseMiddle = pauseDuration / 2; // 1000ms
+        
+        if (pauseElapsed <= pauseMiddle) {
+          // First half of pause: fade in from previous morph
+          // Start from where morph left off (should be around 0.5-1.0)
+          targetOpacity = 0.5 + (pauseElapsed / pauseMiddle) * 0.5; // 0.5 -> 1.0
+        } else {
+          // Second half of pause: fade out toward morph
+          targetOpacity = 1.0 - ((pauseElapsed - pauseMiddle) / pauseMiddle) * 0.5; // 1.0 -> 0.5
+        }
+      } else {
+        // During morph: fade out to 0 at midpoint, then fade in
+        const midpoint = 0.5;
+        
+        if (morphProgress < midpoint) {
+          // Before midpoint: show current equation, continue fading out
+          equationToShow = state;
+          // Continue fade from where pause left off (0.5) down to 0
+          targetOpacity = 0.5 * (1 - morphProgress / midpoint); // 0.5 -> 0
+        } else {
+          // After midpoint: show next equation, fade in
+          equationToShow = nextState;
+          // Fade in from 0 to prepare for next pause
+          targetOpacity = 0.5 * ((morphProgress - midpoint) / midpoint); // 0 -> 0.5
+        }
+      }
+      
+      // Update equation text only when it changes
+      const equation = LAYOUT_EQUATIONS[equationToShow];
+      if (equation !== currentEquation) {
+        setCurrentEquation(equation);
+        try {
+          const html = katex.renderToString(equation, {
+            throwOnError: false,
+            displayMode: true
+          });
+          setEquationHtml(html);
+        } catch (e) {
+          console.error('KaTeX render error:', e);
+          setEquationHtml(equation);
+        }
+      }
+      
+      // Always update opacity for smooth animation
+      setEquationOpacity(targetOpacity);
+
+      rafId = requestAnimationFrame(animate);
+    };
+
+    // Initialize
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+    
+    // Only observe parent element, not window
+    const sizingEl = getSizingElement();
+    let roParent: ResizeObserver | null = null;
+    if (sizingEl) {
+      roParent = new ResizeObserver(resize);
+      roParent.observe(sizingEl);
+    }
+    
+    rafId = requestAnimationFrame(animate);
+
+    return () => {
+      destroyed = true;
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+      roParent?.disconnect();
+      themeObserver.disconnect();
+    };
+  }, []);
+
+  // Use the theme state to determine background color
+  const bgColor = isDarkMode ? '17, 24, 39' : '255, 255, 255'; // rgb values for gray-900 and white
+  
+  return (
+    <div className="w-full relative">
+      <canvas 
+        ref={canvasRef} 
+        className="block w-full" 
+        aria-hidden="true"
+      />
+      {/* Equation display centered on canvas */}
+      <div 
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
+        style={{
+          opacity: equationOpacity, // Direct opacity control
+          fontSize: 'clamp(0.625rem, 1.5vw, 0.875rem)', // Even smaller font
+          fontWeight: 300
+        }}
+      >
+        <div 
+          className="text-gray-600 dark:text-gray-400 rounded px-2 py-1"
+          dangerouslySetInnerHTML={{ __html: equationHtml }}
+          style={{
+            letterSpacing: '0.02em'
+          }}
+        />
+      </div>
+      {/* Edge fading overlay - gentle start, aggressive at edges */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-20"
+        style={{
+          background: `radial-gradient(ellipse at center, 
+            transparent 0%,
+            transparent 50%,
+            rgba(${bgColor}, 0.05) 60%,
+            rgba(${bgColor}, 0.1) 65%,
+            rgba(${bgColor}, 0.2) 70%,
+            rgba(${bgColor}, 0.4) 75%,
+            rgba(${bgColor}, 0.6) 80%,
+            rgba(${bgColor}, 0.8) 85%,
+            rgba(${bgColor}, 0.95) 90%,
+            rgba(${bgColor}, 1) 93%,
+            rgb(${bgColor}) 95%,
+            rgb(${bgColor}) 100%
+          )`
+        }}
+      />
+    </div>
+  );
+}

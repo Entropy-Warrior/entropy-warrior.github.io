@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feather Animation - Three.js Points</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: monospace;
+        }
+        canvas {
+            display: block;
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <div>Feather Animation</div>
+        <div>Equation: a=(x,y,d=mag(k=(4+cos(x/9-t))*cos(x/30),e=y/7-13)+sin(y/99+t/2)-4)</div>
+        <div>Points: <span id="pointCount">10000</span></div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000);
+        document.body.appendChild(renderer.domElement);
+
+        // Camera position
+        camera.position.set(0, 0, 200);
+
+        // Original feather equation - properly centered
+        function computeFeatherPoint(i, t, pointCount) {
+            // Original equation parameters
+            const x = i;
+            const y = i / 235;
+            
+            // k = (4+cos(x/9-t))*cos(x/30)
+            const k = (4 + Math.cos(x/9 - t)) * Math.cos(x/30);
+            
+            // e = y/7-13
+            const e = y/7 - 13;
+            
+            // d = mag(k,e) + sin(y/99+t/2) - 4
+            const mag_k_e = Math.sqrt(k*k + e*e);
+            const d = mag_k_e + Math.sin(y/99 + t/2) - 4;
+            
+            // Main transformation
+            // q = 3*sin(k*2) + sin(y/29)*k*(9+2*sin(cos(e)*9-d*4+t))
+            const q = 3 * Math.sin(k * 2) + Math.sin(y/29) * k * (9 + 2 * Math.sin(Math.cos(e) * 9 - d * 4 + t));
+            
+            // c = d - t
+            const c = d - t;
+            
+            // Final point calculation
+            // point((q + 40*cos(c) + 200), (q*sin(c) + d*35))
+            const finalX = q + 40 * Math.cos(c) + 200;
+            const finalY = q * Math.sin(c) + d * 35;
+            
+            // Center and scale - much smaller since values are huge
+            const point = {
+                x: (finalX - 200) * 0.2,  // Much smaller scale
+                y: -(finalY - 350) * 0.2, // Center around 350 instead of 35, much smaller scale
+                z: 0
+            };
+            
+            // Debug first few points
+            if (i < 5) {
+                console.log(`Point ${i}:`, {finalX, finalY, point});
+                console.log(`Values: k=${k}, e=${e}, d=${d}, q=${q}, c=${c}`);
+            }
+            
+            // Check for invalid values
+            if (!isFinite(point.x) || !isFinite(point.y)) {
+                console.warn(`Invalid point ${i}:`, point);
+                return {x: 0, y: 0, z: 0}; // Return origin for invalid points
+            }
+            
+            return point;
+        }
+
+        // Create points geometry
+        const pointCount = 8000; // More detail
+        const positions = new Float32Array(pointCount * 3);
+        const colors = new Float32Array(pointCount * 3);
+        
+        // Initialize geometry
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        // Create material
+        const material = new THREE.PointsMaterial({
+            size: 0.4, // Much smaller points for fine detail
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9 // Less transparent for better visibility
+        });
+
+        // Create points mesh
+        const points = new THREE.Points(geometry, material);
+        scene.add(points);
+
+        // Animation variables
+        let t = 0;
+        const PI = Math.PI;
+
+        function updatePoints() {
+            const positionAttribute = geometry.attributes.position;
+            const colorAttribute = geometry.attributes.color;
+            
+            for (let i = 0; i < pointCount; i++) {
+                const point = computeFeatherPoint(i, t, pointCount);
+                
+                // Update position
+                positionAttribute.setXYZ(i, point.x, point.y, point.z);
+                
+                // More detailed intensity based on position for feather texture
+                const distanceFromCenter = Math.sqrt(point.x * point.x + point.y * point.y);
+                const baseIntensity = Math.max(0.3, 1.0 - distanceFromCenter * 0.01);
+                const timeVariation = 0.1 * Math.sin(i * 0.003 + t * 0.5);
+                const intensity = Math.min(1.0, baseIntensity + timeVariation);
+                
+                colorAttribute.setXYZ(i, intensity, intensity, intensity);
+            }
+            
+            positionAttribute.needsUpdate = true;
+            colorAttribute.needsUpdate = true;
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update time (PI/120 from original)
+            t += PI / 120;
+            
+            // Update points
+            updatePoints();
+            
+            // Keep camera static to see the feather pattern clearly
+            camera.position.set(0, 0, 200);
+            camera.lookAt(0, 0, 0);
+            
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>

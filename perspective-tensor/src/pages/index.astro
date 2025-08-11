@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StructuredData from '../components/StructuredData.astro';
-import AnimationCanvas from '../react/components/AnimationCanvas.tsx';
+import AnimationCanvas from '../react/components/AnimationCanvasNew.tsx';
 import { getCollection } from 'astro:content';
 
 const posts = await getCollection('blog', ({ data }) => data.draft !== true);
@@ -31,7 +31,7 @@ const websiteData = {
 ---
 <BaseLayout title="Home">
   <StructuredData type="WebSite" data={websiteData} />
-  <div class="relative flex items-center justify-center min-h-[calc(100vh-12rem)] w-full">
+  <div class="relative flex items-center justify-center min-h-[calc(100vh-12rem)] h-[calc(100vh-12rem)] w-full">
     <!-- Layer 1: Canvas (base rendering layer) -->
     <div class="relative w-full h-full" id="canvas-container">
       <AnimationCanvas client:load />
@@ -118,9 +118,9 @@ const websiteData = {
       
       <script>
         let tooltipInitialized = false;
-        let typewriterTimeout;
+        let typewriterTimeout: number;
         let currentTypewriterIndex = 0;
-        let movementTimeout;
+        let movementTimeout: number;
         let isMoving = false;
         
         function initializeTooltip() {
@@ -194,7 +194,7 @@ const websiteData = {
             });
             
             // Track mouse movement with movement detection
-            let animationFrameId;
+            let animationFrameId: number;
             canvasTrigger.addEventListener('mousemove', function(e) {
               if (isHovering) {
                 // Hide tooltip immediately when mouse moves
@@ -236,12 +236,14 @@ const websiteData = {
             });
             
             // Update tooltip position to the right of cursor
-            function updateTooltipPosition(e) {
+            function updateTooltipPosition(e: MouseEvent) {
               const offsetX = 12; // Distance to the right of cursor
               const offsetY = -8; // Slight upward offset
-              tooltip.style.left = (e.clientX + offsetX) + 'px';
-              tooltip.style.top = (e.clientY + offsetY) + 'px';
-              tooltip.style.transform = 'translate(0, -50%)';
+              if (tooltip) {
+                tooltip.style.left = (e.clientX + offsetX) + 'px';
+                tooltip.style.top = (e.clientY + offsetY) + 'px';
+                tooltip.style.transform = 'translate(0, -50%)';
+              }
             }
           }
         }

@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { Shape3D, Vec3 } from '../../core/types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -9,87 +10,115 @@ export const EQUATION = "K = ℝP² # ℝP²";
 export const EQUATION_LATEX = "K = \\mathbb{R}P^2 \\# \\mathbb{R}P^2";
 export const DESCRIPTION = "Klein bottle - a surface with no inside or outside";
 
+// Three.js standard Klein bottle parametric function (from ParametricGeometries.js)
+function kleinBottleFunction(u: number, v: number, target: THREE.Vector3) {
+  u *= Math.PI;
+  v *= 2 * Math.PI;
+  u = u * 2; // Critical: u needs to be doubled for proper Klein bottle shape
+  
+  let x, y, z;
+  
+  if (u < Math.PI) {
+    x = 3 * Math.cos(u) * (1 + Math.sin(u)) + (2 * (1 - Math.cos(u) / 2)) * Math.cos(u) * Math.cos(v);
+    z = -8 * Math.sin(u) - 2 * (1 - Math.cos(u) / 2) * Math.sin(u) * Math.cos(v);
+  } else {
+    x = 3 * Math.cos(u) * (1 + Math.sin(u)) + (2 * (1 - Math.cos(u) / 2)) * Math.cos(v + Math.PI);
+    z = -8 * Math.sin(u);
+  }
+  
+  y = -2 * (1 - Math.cos(u) / 2) * Math.sin(v);
+  
+  // Return the Klein bottle coordinates
+  target.set(x, y, z);
+}
+
 export function generateKleinBottle(pointCount: number, options?: {
   twist?: number;
   noise?: number;
 }): Shape3D {
-  // Use provided parameters or fallback to random/default values
-  const scale = 3 + Math.random() * 2;
-  const bottleRadius = 2 + Math.random() * 1;
-  const neckRadius = 0.5 + Math.random() * 0.3;
-  const twist = options?.twist ?? (Math.random() * 0.5);
-  
   const positions: Vec3[] = [];
   const edges: [number, number][] = [];
   
-  // Calculate grid dimensions
-  const uSteps = Math.ceil(Math.sqrt(pointCount * 1.5));
-  const vSteps = Math.ceil(pointCount / uSteps);
+  console.log('🍶 KLEIN BOTTLE REGENERATED: Using Three.js parametric approach');
   
-  // Generate Klein bottle surface (immersed in 3D, figure-8 form)
-  for (let i = 0; i < uSteps * vSteps && positions.length < pointCount; i++) {
-    const ui = i % uSteps;
-    const vi = Math.floor(i / uSteps);
-    
-    const u = (ui / (uSteps - 1)) * 2 * Math.PI;
-    const v = (vi / (vSteps - 1)) * 2 * Math.PI;
-    
-    // Klein bottle parametric equations (figure-8 immersion)
-    let x: number, y: number, z: number;
-    
-    const cu = Math.cos(u);
-    const su = Math.sin(u);
-    const cv = Math.cos(v);
-    const sv = Math.sin(v);
-    
-    // Modified Klein bottle equation for better 3D visualization
-    const r = bottleRadius * (1 - cu / 2);
-    
-    if (u < Math.PI) {
-      x = 3 * cu * (1 + su) + r * cu * cv;
-      y = 8 * su + r * su * cv;
-    } else {
-      x = 3 * cu * (1 + su) + r * Math.cos(v + Math.PI);
-      y = 8 * su;
+  // Calculate grid dimensions
+  const uSteps = Math.floor(Math.sqrt(pointCount * 2)); // More steps in u for bottle shape
+  const vSteps = Math.floor(pointCount / uSteps);
+  
+  // Generate Klein bottle using Three.js parametric approach
+  const target = new THREE.Vector3();
+  
+  for (let vIndex = 0; vIndex < vSteps; vIndex++) {
+    for (let uIndex = 0; uIndex < uSteps; uIndex++) {
+      // Normalized parameters [0, 1] - include the full range to close the bottle
+      const u = uIndex / (uSteps - 1);  // Changed to include 1.0
+      const v = vIndex / (vSteps - 1);
+      
+      // Use Three.js Klein bottle function
+      kleinBottleFunction(u, v, target);
+      
+      // Extract position
+      const x = target.x;
+      const y = target.y;
+      const z = target.z;
+      
+      // Add controlled noise for organic appearance
+      const noise = options?.noise ?? 0.05;
+      const ε = () => (Math.random() - 0.5) * noise;
+      
+      positions.push([x + ε(), y + ε(), z + ε()]);
     }
-    
-    z = r * sv;
-    
-    // Apply scale and twist
-    const twistedX = scale * (x * Math.cos(twist * v) - y * Math.sin(twist * v));
-    const twistedY = scale * (x * Math.sin(twist * v) + y * Math.cos(twist * v));
-    const scaledZ = scale * z;
-    
-    // Add slight noise for organic feel
-    const noise = options?.noise ?? 0.05;
-    const nx = (Math.random() - 0.5) * noise;
-    const ny = (Math.random() - 0.5) * noise;
-    const nz = (Math.random() - 0.5) * noise;
-    
-    positions.push([
-      twistedX / 3 + nx,
-      twistedY / 3 + ny,
-      scaledZ / 3 + nz
-    ]);
   }
   
-  // Create edges forming the mesh
-  for (let ui = 0; ui < uSteps; ui++) {
-    for (let vi = 0; vi < vSteps; vi++) {
-      const idx = ui + vi * uSteps;
+  // Helper to calculate distance
+  const dist = (p1: Vec3, p2: Vec3): number => {
+    const dx = p1[0] - p2[0];
+    const dy = p1[1] - p2[1];
+    const dz = p1[2] - p2[2];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  };
+  
+  // Calculate typical edge length by sampling middle of surface
+  let avgEdge = 0;
+  let sampleCount = 0;
+  const midV = Math.floor(vSteps / 2);
+  for (let u = 0; u < Math.min(5, uSteps - 1); u++) {
+    const idx1 = midV * uSteps + u;
+    const idx2 = midV * uSteps + u + 1;
+    if (idx1 < positions.length && idx2 < positions.length) {
+      avgEdge += dist(positions[idx1], positions[idx2]);
+      sampleCount++;
+    }
+  }
+  avgEdge = sampleCount > 0 ? avgEdge / sampleCount : 1;
+  const maxEdge = avgEdge * 3; // Allow some variation but not huge jumps
+  
+  // Create surface mesh - complete grid with wrap-around
+  for (let vIndex = 0; vIndex < vSteps; vIndex++) {
+    for (let uIndex = 0; uIndex < uSteps; uIndex++) {
+      const i = vIndex * uSteps + uIndex;
       
-      // Connect in u direction
-      const nextU = (ui + 1) % uSteps;
-      const nextUIdx = nextU + vi * uSteps;
-      if (nextUIdx < positions.length) {
-        edges.push([idx, nextUIdx]);
+      // Connect to next point in u direction
+      if (uIndex < uSteps - 1) {
+        const nextU = vIndex * uSteps + (uIndex + 1);
+        if (nextU < positions.length) {
+          edges.push([i, nextU]);
+        }
+      } else {
+        // Wrap around: connect last to first in each row to close the loop
+        const firstInRow = vIndex * uSteps;
+        if (firstInRow < positions.length) {
+          // Skip this edge connection - don't connect the ends
+          // This prevents the twisted lines while keeping the shape complete
+        }
       }
       
-      // Connect in v direction
-      const nextV = (vi + 1) % vSteps;
-      const nextVIdx = ui + nextV * uSteps;
-      if (nextVIdx < positions.length) {
-        edges.push([idx, nextVIdx]);
+      // Connect to next point in v direction
+      if (vIndex < vSteps - 1) {
+        const nextV = (vIndex + 1) * uSteps + uIndex;
+        if (nextV < positions.length) {
+          edges.push([i, nextV]);
+        }
       }
     }
   }
@@ -103,14 +132,14 @@ export function generateKleinBottle(pointCount: number, options?: {
       name: 'Klein Bottle',
       equation: EQUATION,
       description: DESCRIPTION,
-      complexity: 0.8, // High complexity
+      complexity: 0.8, // High complexity due to self-intersection
       optimalPointRange: {
         min: 800,
         max: 2000,
-        recommended: 1400
+        recommended: 1500
       },
       category: 'geometric',
-      tags: ['topology', 'non-orientable', 'surface', 'immersion']
+      tags: ['topology', 'non-orientable', 'surface', 'immersion', 'self-intersecting']
     }
   };
 }
