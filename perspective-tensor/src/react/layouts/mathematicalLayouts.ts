@@ -200,7 +200,7 @@ export const generateMathDiskGalaxyLayout = (customN?: number): Layout => {
     const t = Math.min(r / 20, 1); // Normalize for calculations (20 = reasonable max for spiral calcs)
     
     // Spiral: continuous in one direction, tighter at center
-    const spiralRate = spiralTightness / (1 + t * 2); // Decreases with radius (looser at edges)
+    // const spiralRate = spiralTightness / (1 + t * 2); // Decreases with radius (looser at edges)
     const θ = spiralTightness * Math.PI * t; // Simple continuous spiral
     
     // Flat galaxy disk with more noise in the center
@@ -245,7 +245,7 @@ export const generateMathMobiusRibbonLayout = (customN?: number): Layout => {
   
   const positions = Array.from({length: N}, (_, i) => {
     // Map points uniformly around the Möbius strip regardless of N
-    const t = i / (N - 1); // Uniform parameter [0,1] independent of N
+    // const t = i / (N - 1); // Uniform parameter [0,1] independent of N
     
     // Separate into strip (across width) and loop (along length) components
     const stripIndex = i % strips;

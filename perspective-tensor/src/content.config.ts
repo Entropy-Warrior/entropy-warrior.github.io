@@ -9,7 +9,8 @@ const blog = defineCollection({
     pubDate: z.coerce.date().optional(),
     draft: z.boolean().optional(),
     tags: z.array(z.string()).optional(),
-    author: z.string().optional()
+    author: z.string().optional(),
+    section: z.string().optional()
   })
 });
 
@@ -21,7 +22,8 @@ const code = defineCollection({
     pubDate: z.coerce.date().optional(),
     draft: z.boolean().optional(),
     tags: z.array(z.string()).optional(),
-    author: z.string().optional()
+    author: z.string().optional(),
+    section: z.string().optional()
   })
 });
 
@@ -33,7 +35,8 @@ const growth = defineCollection({
     pubDate: z.coerce.date().optional(),
     draft: z.boolean().optional(),
     tags: z.array(z.string()).optional(),
-    author: z.string().optional()
+    author: z.string().optional(),
+    section: z.string().optional()
   })
 });
 

@@ -38,14 +38,14 @@ export async function loadSavedShapes(): Promise<Record<string, Shape3D>> {
   const shapes: Record<string, Shape3D> = {
     'Shape3D_Tensor': generateTensor(1000, { spacing: 2, skew: 0.3, twist: 0.5, noise: 0.1 }),
     'Shape3D_Wormhole': generateWormhole(1000, { twist: 1.0, noise: 0.05 }),
-    'Shape3D_Galaxy': generateGalaxy(1200, {}),
-    'Shape3D_Graph': generateGraph(1000, {}),
+    'Shape3D_Galaxy': generateGalaxy(1200),
+    'Shape3D_Graph': generateGraph(1000),
     'Shape3D_MobiusRibbon': generateMobiusRibbon(1000, { twists: 1 }),
-    'Shape3D_DoubleHelix': generateDoubleHelix(1000, {}),
-    'Shape3D_TorusKnot': generateTorusKnot(1000, {}),
+    'Shape3D_DoubleHelix': generateDoubleHelix(1000),
+    'Shape3D_TorusKnot': generateTorusKnot(1000),
     'Shape3D_KleinBottle': generateKleinBottle(968, { twist: 1.0, noise: 0.05 }),
-    'Shape3D_Spherical': generateSphere(1000, {}),
-    'Shape3D_Hypercube': generateHypercube(1000, {})
+    'Shape3D_Spherical': generateSphere(1000),
+    'Shape3D_Hypercube': generateHypercube(1000)
   };
   
   // Cache the shapes

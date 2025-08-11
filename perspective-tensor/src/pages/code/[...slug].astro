@@ -332,7 +332,7 @@ const snippetData = {
         {snippet.data.tags && snippet.data.tags.length > 0 && (
           <div class="flex flex-wrap gap-1.5">
             {snippet.data.tags.map((tag: string) => (
-              <Tag text={tag} variant="code" />
+              <Tag text={tag} />
             ))}
           </div>
         )}

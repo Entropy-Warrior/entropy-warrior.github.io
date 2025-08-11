@@ -310,8 +310,8 @@ const blogData = {
       const tagButtons = document.querySelectorAll<HTMLButtonElement>('.filter-tag');
       const container = document.getElementById('posts-container');
       
-      let currentSection = 'all';
-      let currentTag = 'all';
+      let currentSection: string | null = 'all';
+      let currentTag: string | null = 'all';
       let currentVisiblePosts: HTMLElement[] = [];
       let debounceTimeout: number | null = null;
       let leaveTimeout: number | null = null;
@@ -371,7 +371,7 @@ const blogData = {
           const postTags = post.getAttribute('data-tags')?.split(',') || [];
           
           const sectionMatch = currentSection === 'all' || postSection === currentSection;
-          const tagMatch = currentTag === 'all' || postTags.includes(currentTag);
+          const tagMatch = currentTag === 'all' || (currentTag !== null && postTags.includes(currentTag));
           
           if (sectionMatch && tagMatch) {
             currentVisiblePosts.push(post);

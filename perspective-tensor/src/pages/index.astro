@@ -118,9 +118,9 @@ const websiteData = {
       
       <script>
         let tooltipInitialized = false;
-        let typewriterTimeout: number;
+        let typewriterTimeout: ReturnType<typeof setTimeout>;
         let currentTypewriterIndex = 0;
-        let movementTimeout: number;
+        let movementTimeout: ReturnType<typeof setTimeout>;
         let isMoving = false;
         
         function initializeTooltip() {
@@ -138,13 +138,13 @@ const websiteData = {
             
             // Typewriter effect function
             function startTypewriter() {
-              typewriterText.textContent = '';
+              typewriterText!.textContent = '';
               currentTypewriterIndex = 0;
               
               function typeNextChar() {
                 if (currentTypewriterIndex < fullText.length && isHovering && !isMoving) {
                   const char = fullText[currentTypewriterIndex];
-                  typewriterText.textContent += char;
+                  typewriterText!.textContent += char;
                   currentTypewriterIndex++;
                   
                   // Variable typing speed for natural feel
@@ -188,7 +188,7 @@ const websiteData = {
               tooltip.classList.add('opacity-0');
               clearTimeout(typewriterTimeout);
               clearTimeout(movementTimeout);
-              typewriterText.textContent = '';
+              typewriterText!.textContent = '';
               currentTypewriterIndex = 0;
               isMoving = false;
             });

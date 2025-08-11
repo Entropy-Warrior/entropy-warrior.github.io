@@ -1,6 +1,6 @@
 import React, { useState, useRef, Suspense, useMemo, useEffect, useCallback } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stats, Grid, Html } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Stats, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Shape3D, Vec3 } from '../animation/core/types';
 import {
@@ -22,7 +22,6 @@ interface SimpleBrownianState {
 }
 import {
   type ThemeColor,
-  type ThemeColors,
   getThemeColor,
   createThemeColor,
   darkToLight,
@@ -128,7 +127,7 @@ function ShapeVisualizer({
   }, [shape.positions.length, pointSize, pointSizeVariation]);
   
   // Auto-rotation and Brownian motion update
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     // Rotation
     if (autoRotate && groupRef.current) {
       groupRef.current.rotation.y += rotationSpeed * delta;
@@ -544,7 +543,7 @@ export function ShapeTestLab() {
     const TARGET_SIZE = 10; // Standard size for all shapes
     
     // First center the shape
-    const { centered, center } = centerPositions(shape.positions);
+    const { centered } = centerPositions(shape.positions);
     
     // Get bounds of centered shape
     const bounds = getBounds(centered);

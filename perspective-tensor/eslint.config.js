@@ -36,17 +36,6 @@ export default [
     },
   },
   {
-    // Special config for Astro files
-    files: ['**/*.astro'],
-    languageOptions: {
-      parser: 'astro-eslint-parser',
-      parserOptions: {
-        parser: typescriptParser,
-        extraFileExtensions: ['.astro'],
-      },
-    },
-  },
-  {
     // Ignore patterns
     ignores: [
       'dist/',

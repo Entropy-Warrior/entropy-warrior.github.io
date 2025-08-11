@@ -13,7 +13,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Delaunay } from 'd3-delaunay';
-import polygonClipping from 'polygon-clipping';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -195,7 +194,7 @@ function extractCenterlineWithVoronoi(polygonPoints) {
     
     // Create Delaunay triangulation
     const delaunay = Delaunay.from(internalPoints);
-    const voronoi = delaunay.voronoi([minX, minY, maxX, maxY]);
+    // const voronoi = delaunay.voronoi([minX, minY, maxX, maxY]);
     
     // Find points that are far from the boundary (centerline candidates)
     const centerlineCandidates = [];

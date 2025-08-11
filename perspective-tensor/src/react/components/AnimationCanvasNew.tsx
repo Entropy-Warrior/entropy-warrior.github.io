@@ -539,7 +539,12 @@ class StreamlinedAnimation {
     const currentPositions = currentLayout.positions;
     
     // Always update brownian motion for organic feel
-    updateBrownianMotion(this.brownianOffsets, deltaTime * 0.001);
+    updateBrownianMotion(this.brownianOffsets, {
+      amplitude: 2,
+      speed: 0.5,
+      frequency: 0.1,
+      damping: 0.8
+    }, deltaTime);
     
     // Smooth rotation interpolation
     if (this.rotation.transitionProgress < 1) {

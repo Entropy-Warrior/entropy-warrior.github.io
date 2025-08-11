@@ -39,7 +39,7 @@ export function generateParallelTransportFrames(centerline: Vec3[]): Frame[] {
   // Generate subsequent frames using parallel transport
   for (let i = 1; i < centerline.length; i++) {
     const prevFrame = frames[i - 1];
-    const currentPoint = centerline[i];
+    // const currentPoint = centerline[i];
     const prevPoint = centerline[i - 1];
     
     // Calculate current tangent

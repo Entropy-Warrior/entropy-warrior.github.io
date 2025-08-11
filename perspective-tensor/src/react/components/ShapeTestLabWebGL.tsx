@@ -19,7 +19,6 @@ import {
   updateBrownianMotion,
 } from "../animation/utils";
 import {
-  type ThemeColor,
   getThemeColor,
   darkToLight,
   DEFAULT_THEME_COLORS,
